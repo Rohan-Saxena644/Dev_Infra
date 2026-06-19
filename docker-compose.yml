@@ -1,0 +1,11 @@
+services:
+  postgres:
+    image: postgres:17
+
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: devinfra
+
+    ports:
+      - "5432:5432"

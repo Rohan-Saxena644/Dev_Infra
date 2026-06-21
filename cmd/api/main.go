@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
+	"log"
+	"net/http"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
-	"context"
-	"github.com/jackc/pgx/v5"
-	"log"
 	"github.com/Rohan-Saxena644/devinfra/internal/server"
+	"github.com/go-chi/chi"
+	"github.com/jackc/pgx/v5"
 )
 
 func main(){
@@ -23,5 +25,10 @@ func main(){
 		DB: queries,
 	}
 
-	
+	r := chi.NewRouter()
+
+	r.Post("/projects",srv.CreateProject)
+
+	log.Println("listening on :8080")
+	log.Fatal(http.ListenAndServe(":8080",r))
 }

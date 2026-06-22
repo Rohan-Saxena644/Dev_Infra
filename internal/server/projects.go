@@ -21,7 +21,7 @@ func (s *Server) CreateProject(
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w,"invalid json", http.StatusBadRequest)
 		return
 	}
 
@@ -39,5 +39,27 @@ func (s *Server) CreateProject(
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(project)
+}
+
+
+
+func (s *Server) GetProjects(
+	w http.ResponseWriter,
+	r *http.Request,
+){
+	projects,err := s.DB.GetProjects(context.Background())
+	if err != nil{
+		http.Error(
+			w,
+			"failed to fetch projects",
+			http.StatusInternalServerError,
+		)
+
+		return 
+	}
+
+	w.Header().Set("Content-type","application/json")
+	json.NewEncoder(w).Encode(projects)
 }

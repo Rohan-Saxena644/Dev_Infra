@@ -28,6 +28,7 @@ func main(){
 	r := chi.NewRouter()
 
 	r.Post("/projects",srv.CreateProject)
+	r.Get("/projects", srv.GetProjects)
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080",r))

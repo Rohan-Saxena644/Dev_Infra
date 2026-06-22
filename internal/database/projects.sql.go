@@ -38,6 +38,24 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 	return i, err
 }
 
+const getProject = `-- name: GetProject :one
+SELECT id, name, repo_url, created_at
+FROM projects
+WHERE id = $1
+`
+
+func (q *Queries) GetProject(ctx context.Context, id int32) (Project, error) {
+	row := q.db.QueryRow(ctx, getProject, id)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.RepoUrl,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getProjects = `-- name: GetProjects :many
 SELECT id, name, repo_url, created_at
 FROM projects

@@ -13,3 +13,9 @@ RETURNING *;
 SELECT *
 FROM projects
 ORDER BY created_at DESC;
+
+
+-- name: GetProject :one
+SELECT *
+FROM projects
+WHERE id = $1;

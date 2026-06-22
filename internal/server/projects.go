@@ -63,3 +63,11 @@ func (s *Server) GetProjects(
 	w.Header().Set("Content-type","application/json")
 	json.NewEncoder(w).Encode(projects)
 }
+
+
+
+
+func (s *Server) GetProject(
+	w http.ResponseWriter,
+	r *http.Request,
+)

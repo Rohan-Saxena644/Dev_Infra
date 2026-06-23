@@ -37,3 +37,11 @@ func (s *ProjectService) CreateDeployment(projectID int32)(database.Deployment,e
 		Status: "queued",
 	})
 }
+
+
+func (s *ProjectService) GetDeployments() (
+	[]database.Deployment,
+	error,
+) {
+	return s.DB.GetDeployments(context.Background())
+}

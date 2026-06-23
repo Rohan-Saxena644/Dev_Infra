@@ -8,3 +8,8 @@ VALUES (
     $2
 )
 RETURNING *;
+
+-- name: GetDeployments :many
+SELECT *
+FROM deployments
+ORDER BY created_at DESC;

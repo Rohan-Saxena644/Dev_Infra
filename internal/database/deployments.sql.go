@@ -37,3 +37,34 @@ func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentPara
 	)
 	return i, err
 }
+
+const getDeployments = `-- name: GetDeployments :many
+SELECT id, project_id, status, created_at
+FROM deployments
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetDeployments(ctx context.Context) ([]Deployment, error) {
+	rows, err := q.db.Query(ctx, getDeployments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Deployment
+	for rows.Next() {
+		var i Deployment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Status,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

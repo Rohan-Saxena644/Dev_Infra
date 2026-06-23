@@ -13,7 +13,7 @@ import (
 
 func main(){
 
-	conn, err := pgx.Connect(context.Background(),"postgres://admin:admin@localhost:5433/devinfra?sslmode=disable")
+	conn, err := pgx.Connect(context.Background(),"postgres://admin:admin@localhost:15432/devinfra?sslmode=disable")
 	if err != nil{
 		log.Fatal(err)
 	}
@@ -29,6 +29,7 @@ func main(){
 
 	r.Post("/projects",srv.CreateProject)
 	r.Get("/projects", srv.GetProjects)
+	r.Get("/projects/{id}",srv.GetProject)
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080",r))

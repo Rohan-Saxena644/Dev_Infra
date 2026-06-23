@@ -1,7 +1,7 @@
 package server
 
-import "github.com/Rohan-Saxena644/devinfra/internal/database"
+import "github.com/Rohan-Saxena644/devinfra/internal/service"
 
 type Server struct{
-	DB *database.Queries
+	ProjectService *service.ProjectService
 }

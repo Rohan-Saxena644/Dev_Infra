@@ -1,12 +1,14 @@
 package server
 
 import (
-	"context"
+	// "context"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/Rohan-Saxena644/devinfra/internal/database"
+	// "github.com/Rohan-Saxena644/devinfra/internal/database"
+
+	// "github.com/Rohan-Saxena644/devinfra/internal/service" was imported in the server struct from there the db is working entirely
 	"github.com/go-chi/chi"
 )
 
@@ -27,13 +29,7 @@ func (s *Server) CreateProject(
 		return
 	}
 
-	project, err := s.DB.CreateProject(
-		context.Background(),
-		database.CreateProjectParams{
-			Name:    req.Name,
-			RepoUrl: req.RepoURL,
-		},
-	)
+	project, err := s.ProjectService.CreateProject(req.Name,req.RepoURL)
 
 	if err != nil {
 		http.Error(w, "failed to create project", http.StatusInternalServerError)
@@ -51,7 +47,7 @@ func (s *Server) GetProjects(
 	w http.ResponseWriter,
 	r *http.Request,
 ){
-	projects,err := s.DB.GetProjects(context.Background())
+	projects,err := s.ProjectService.GetProjects()
 	if err != nil{
 		http.Error(
 			w,
@@ -85,7 +81,7 @@ func (s *Server) GetProject(
 	}
 
 
-	project , err :=s.DB.GetProject(context.Background(),int32(id))
+	project , err :=s.ProjectService.GetProject(int32(id))
 
 	if err != nil{
 		http.Error(

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
+	"github.com/Rohan-Saxena644/devinfra/internal/service"
 	"github.com/Rohan-Saxena644/devinfra/internal/server"
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
@@ -21,8 +22,16 @@ func main(){
 	defer conn.Close(context.Background())
 	queries := database.New(conn)
 
-	srv := &server.Server{
+	// srv := &server.Server{
+	// 	DB: queries,
+	// }
+
+	projectService := &service.ProjectService{
 		DB: queries,
+	}
+
+	srv := &server.Server{
+		ProjectService: projectService,
 	}
 
 	r := chi.NewRouter()

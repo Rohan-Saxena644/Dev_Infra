@@ -29,3 +29,11 @@ func (s *ProjectService) GetProjects() ([]database.Project, error) {
 func (s *ProjectService) GetProject(id int32) (database.Project, error) {
 	return s.DB.GetProject(context.Background(), id)
 }
+
+
+func (s *ProjectService) CreateDeployment(projectID int32)(database.Deployment,error){
+	return s.DB.CreateDeployment(context.Background(),database.CreateDeploymentParams{
+		ProjectID: projectID,
+		Status: "queued",
+	})
+}

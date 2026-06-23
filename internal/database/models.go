@@ -8,6 +8,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Deployment struct {
+	ID        int32
+	ProjectID int32
+	Status    string
+	CreatedAt pgtype.Timestamp
+}
+
 type Project struct {
 	ID        int32
 	Name      string

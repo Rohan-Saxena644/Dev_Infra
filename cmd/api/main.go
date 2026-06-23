@@ -40,6 +40,7 @@ func main(){
 	r.Get("/projects", srv.GetProjects)
 	r.Get("/projects/{id}",srv.GetProject)
 	r.Post("/projects/{id}/deploy", srv.CreateDeployment)
+	r.Get("/deployments", srv.GetDeployments)
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080",r))

@@ -47,3 +47,24 @@ func (s *Server) CreateDeployment(
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(deployment)
 }
+
+
+func (s *Server) GetDeployments(
+	w http.ResponseWriter,
+	r *http.Request,
+){
+
+	deployments,err := s.ProjectService.GetDeployments()
+	if err != nil{
+		http.Error(
+			w,
+			"failed to get deployments",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(deployments)
+}

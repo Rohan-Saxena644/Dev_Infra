@@ -8,6 +8,7 @@ import (
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/Rohan-Saxena644/devinfra/internal/service"
 	"github.com/Rohan-Saxena644/devinfra/internal/server"
+	"github.com/Rohan-Saxena644/devinfra/internal/worker"
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
 )
@@ -30,8 +31,13 @@ func main(){
 		DB: queries,
 	}
 
+	worker := &worker.DeploymentWorker{
+		DB: queries,
+	}
+
 	srv := &server.Server{
 		ProjectService: projectService,
+		Worker: worker,
 	}
 
 	r := chi.NewRouter()

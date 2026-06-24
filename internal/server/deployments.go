@@ -9,6 +9,7 @@ import (
 	// "github.com/Rohan-Saxena644/devinfra/internal/database"
 
 	// "github.com/Rohan-Saxena644/devinfra/internal/service" was imported in the server struct from there the db is working entirely
+	//"github.com/Rohan-Saxena644/devinfra/internal/worker" same as above in the server struct it was imported the db is connected to the reference struct pointer
 	"github.com/go-chi/chi"
 )
 
@@ -33,6 +34,8 @@ func (s *Server) CreateDeployment(
 	deployment, err := s.ProjectService.CreateDeployment(
 		int32(id),
 	)
+
+	go s.Worker.ProcessDeployment(deployment.ID)
 
 	if err != nil {
 		http.Error(

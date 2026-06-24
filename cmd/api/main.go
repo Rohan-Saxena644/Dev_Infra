@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"log/slog"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
@@ -12,6 +13,8 @@ import (
 	"github.com/Rohan-Saxena644/devinfra/internal/worker"
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
+	"os"
+	"os/signal"
 )
 
 func main(){
@@ -42,6 +45,12 @@ func main(){
 		Worker: worker,
 	}
 
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+	)
+	defer stop()
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logging)
@@ -55,6 +64,24 @@ func main(){
 	for range 3 {
 		go worker.Start()
 	}
-	log.Println("listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080",r))
+
+	httpserver := &http.Server{
+		Addr: ":8080",
+		Handler: r,
+	}
+
+	// log.Println("listening on :8080")
+	// log.Fatal(http.ListenAndServe(":8080",r))
+
+	go func() {
+		if err := httpserver.ListenAndServe(); err != nil &&
+			err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+
+	<-ctx.Done()
+
+	slog.Info("shutting down...")
 }

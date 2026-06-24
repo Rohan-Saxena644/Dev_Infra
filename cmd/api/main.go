@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"os"
 	"os/signal"
+	"time"
 )
 
 func main(){
@@ -61,7 +62,7 @@ func main(){
 	r.Post("/projects/{id}/deploy", srv.CreateDeployment)
 	r.Get("/deployments", srv.GetDeployments)
 
-	for range 3 {
+	for i:=0;i<3;i++ {
 		go worker.Start()
 	}
 
@@ -70,7 +71,7 @@ func main(){
 		Handler: r,
 	}
 
-	// log.Println("listening on :8080")
+	log.Println("listening on :8080")
 	// log.Fatal(http.ListenAndServe(":8080",r))
 
 	go func() {
@@ -84,4 +85,14 @@ func main(){
 	<-ctx.Done()
 
 	slog.Info("shutting down...")
+
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	if err := httpserver.Shutdown(shutdownCtx); err != nil {
+		log.Fatal(err)
+	}
 }

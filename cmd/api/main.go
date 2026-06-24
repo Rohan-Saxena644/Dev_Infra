@@ -6,8 +6,9 @@ import (
 	"net/http"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
-	"github.com/Rohan-Saxena644/devinfra/internal/service"
+	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
 	"github.com/Rohan-Saxena644/devinfra/internal/server"
+	"github.com/Rohan-Saxena644/devinfra/internal/service"
 	"github.com/Rohan-Saxena644/devinfra/internal/worker"
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
@@ -42,6 +43,8 @@ func main(){
 	}
 
 	r := chi.NewRouter()
+
+	r.Use(middleware.Logging)
 
 	r.Post("/projects",srv.CreateProject)
 	r.Get("/projects", srv.GetProjects)

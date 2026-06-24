@@ -68,3 +68,27 @@ func (q *Queries) GetDeployments(ctx context.Context) ([]Deployment, error) {
 	}
 	return items, nil
 }
+
+const updateDeploymentStatus = `-- name: UpdateDeploymentStatus :one
+UPDATE deployments
+SET status = $2
+WHERE id = $1
+RETURNING id, project_id, status, created_at
+`
+
+type UpdateDeploymentStatusParams struct {
+	ID     int32
+	Status string
+}
+
+func (q *Queries) UpdateDeploymentStatus(ctx context.Context, arg UpdateDeploymentStatusParams) (Deployment, error) {
+	row := q.db.QueryRow(ctx, updateDeploymentStatus, arg.ID, arg.Status)
+	var i Deployment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Status,
+		&i.CreatedAt,
+	)
+	return i, err
+}

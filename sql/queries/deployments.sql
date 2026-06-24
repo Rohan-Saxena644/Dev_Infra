@@ -13,3 +13,10 @@ RETURNING *;
 SELECT *
 FROM deployments
 ORDER BY created_at DESC;
+
+
+-- name: UpdateDeploymentStatus :one
+UPDATE deployments
+SET status = $2
+WHERE id = $1
+RETURNING *;

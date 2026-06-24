@@ -49,7 +49,9 @@ func main(){
 	r.Post("/projects/{id}/deploy", srv.CreateDeployment)
 	r.Get("/deployments", srv.GetDeployments)
 
-	go worker.Start()
+	for range 3 {
+		go worker.Start()
+	}
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080",r))
 }

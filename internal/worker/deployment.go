@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
+	"log"
 )
 
 
@@ -14,21 +15,31 @@ type DeploymentWorker struct{
 }
 
 func (w *DeploymentWorker)ProcessDeployment(
-	deployemntID int32,
+	deploymentID int32,
 ){
 	w.DB.UpdateDeploymentStatus(context.Background(),
 		database.UpdateDeploymentStatusParams{
-			ID: deployemntID,
+			ID: deploymentID,
 			Status: "running",
 		},
 	)	
 
+	log.Printf(
+		"processing deployment %d",
+		deploymentID,
+	)
+
 	time.Sleep(5 * time.Second)
+
+	log.Printf(
+		"deployment %d finished",
+		deploymentID,
+	)
 
 	w.DB.UpdateDeploymentStatus(
 		context.Background(),
 		database.UpdateDeploymentStatusParams{
-			ID: deployemntID,
+			ID: deploymentID,
 			Status: "success",
 		},
 	)

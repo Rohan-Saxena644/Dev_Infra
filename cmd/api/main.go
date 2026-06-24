@@ -33,6 +33,7 @@ func main(){
 
 	worker := &worker.DeploymentWorker{
 		DB: queries,
+		Queue: make(chan int32, 100),
 	}
 
 	srv := &server.Server{
@@ -48,6 +49,7 @@ func main(){
 	r.Post("/projects/{id}/deploy", srv.CreateDeployment)
 	r.Get("/deployments", srv.GetDeployments)
 
+	go worker.Start()
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080",r))
 }

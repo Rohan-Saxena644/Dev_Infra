@@ -10,6 +10,7 @@ import (
 
 type DeploymentWorker struct{
 	DB *database.Queries
+	Queue chan int32
 }
 
 func (w *DeploymentWorker)ProcessDeployment(
@@ -31,4 +32,11 @@ func (w *DeploymentWorker)ProcessDeployment(
 			Status: "success",
 		},
 	)
+}
+
+
+func (w *DeploymentWorker) Start(){
+	for deploymentID := range w.Queue{
+		w.ProcessDeployment(deploymentID)
+	}
 }

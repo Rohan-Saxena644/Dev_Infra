@@ -35,7 +35,7 @@ func (s *Server) CreateDeployment(
 		int32(id),
 	)
 
-	go s.Worker.ProcessDeployment(deployment.ID)
+	s.Worker.Queue <- deployment.ID
 
 	if err != nil {
 		http.Error(

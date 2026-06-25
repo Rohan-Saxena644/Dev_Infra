@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
+	"github.com/Rohan-Saxena644/devinfra/internal/docker"
 	"log"
 )
 
@@ -12,6 +13,7 @@ import (
 type DeploymentWorker struct{
 	DB *database.Queries
 	Queue chan int32
+	Docker *docker.Client
 }
 
 func (w *DeploymentWorker)ProcessDeployment(
@@ -22,7 +24,14 @@ func (w *DeploymentWorker)ProcessDeployment(
 			ID: deploymentID,
 			Status: "running",
 		},
-	)	
+	)
+	
+	output, err := w.Docker.DockerPS()
+	if err != nil {
+		log.Println(err)
+	}
+
+	log.Println(string(output))
 
 	log.Printf(
 		"processing deployment %d",

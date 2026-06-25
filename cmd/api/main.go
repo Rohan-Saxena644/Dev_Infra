@@ -3,19 +3,21 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"log/slog"
+	"net/http"
+
+	"os"
+	"os/signal"
+	"time"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
+	"github.com/Rohan-Saxena644/devinfra/internal/docker"
 	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
 	"github.com/Rohan-Saxena644/devinfra/internal/server"
 	"github.com/Rohan-Saxena644/devinfra/internal/service"
 	"github.com/Rohan-Saxena644/devinfra/internal/worker"
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
-	"os"
-	"os/signal"
-	"time"
 )
 
 func main(){
@@ -36,9 +38,13 @@ func main(){
 		DB: queries,
 	}
 
+	
+	dockerClient := &docker.Client{}
+
 	worker := &worker.DeploymentWorker{
-		DB: queries,
-		Queue: make(chan int32, 100),
+		DB:     queries,
+		Queue:  make(chan int32, 100),
+		Docker: dockerClient,
 	}
 
 	srv := &server.Server{

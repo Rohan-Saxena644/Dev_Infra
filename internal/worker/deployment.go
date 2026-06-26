@@ -26,7 +26,24 @@ func (w *DeploymentWorker)ProcessDeployment(
 		},
 	)
 	
-	output, err := w.Docker.DockerPS()
+	output, err := w.Docker.Build(
+		"devinfra-test",
+		"./test-app",
+	)
+
+	log.Println(string(output))
+
+	if err != nil {
+		return
+	}
+
+	output, err = w.Docker.Run(
+		"devinfra-test",
+		"devinfra-test",
+	)
+
+	log.Println(string(output))
+	
 	if err != nil {
 		log.Println(err)
 	}

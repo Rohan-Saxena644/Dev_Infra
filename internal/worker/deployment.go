@@ -3,6 +3,7 @@ package worker
 import (
 	"time"
 	"context"
+	"fmt"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/Rohan-Saxena644/devinfra/internal/docker"
@@ -25,9 +26,11 @@ func (w *DeploymentWorker)ProcessDeployment(
 			Status: "running",
 		},
 	)
+
+	imageName := fmt.Sprintf("deployment-%d",deploymentID)
 	
 	output, err := w.Docker.Build(
-		"devinfra-test",
+		imageName,
 		"./test-app",
 	)
 
@@ -37,13 +40,16 @@ func (w *DeploymentWorker)ProcessDeployment(
 		return
 	}
 
+
+	containerName := imageName
+
 	output, err = w.Docker.Run(
-		"devinfra-test",
-		"devinfra-test",
+		containerName,
+		imageName,
 	)
 
 	log.Println(string(output))
-	
+
 	if err != nil {
 		log.Println(err)
 	}

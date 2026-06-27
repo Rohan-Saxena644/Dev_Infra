@@ -37,3 +37,8 @@ func (c *Client) Run(containerName string, image string)([]byte,error){
 		image,
 	).CombinedOutput()
 }
+
+
+func (c *Client) BuildRun(imageName string,containerName string,path string,)error{
+	
+}

@@ -1,13 +1,15 @@
 package worker
 
 import (
-	"time"
 	"context"
 	"fmt"
+	"time"
+
+	"log"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/Rohan-Saxena644/devinfra/internal/docker"
-	"log"
+	"github.com/Rohan-Saxena644/devinfra/internal/git"
 )
 
 
@@ -15,6 +17,7 @@ type DeploymentWorker struct{
 	DB *database.Queries
 	Queue chan int32
 	Docker *docker.Client
+	Git *git.Client
 }
 
 

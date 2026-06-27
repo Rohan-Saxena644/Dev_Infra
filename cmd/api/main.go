@@ -12,6 +12,7 @@ import (
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/Rohan-Saxena644/devinfra/internal/docker"
+	"github.com/Rohan-Saxena644/devinfra/internal/git"
 	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
 	"github.com/Rohan-Saxena644/devinfra/internal/server"
 	"github.com/Rohan-Saxena644/devinfra/internal/service"
@@ -40,11 +41,13 @@ func main(){
 
 	
 	dockerClient := &docker.Client{}
+	git := &git.Client{}
 
 	worker := &worker.DeploymentWorker{
 		DB:     queries,
 		Queue:  make(chan int32, 100),
 		Docker: dockerClient,
+		Git: git,
 	}
 
 	srv := &server.Server{
@@ -79,6 +82,8 @@ func main(){
 
 	log.Println("listening on :8080")
 	// log.Fatal(http.ListenAndServe(":8080",r))
+
+	// Graceful shutdoen
 
 	go func() {
 		if err := httpserver.ListenAndServe(); err != nil &&

@@ -7,6 +7,8 @@ package database
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createDeployment = `-- name: CreateDeployment :one
@@ -18,7 +20,7 @@ VALUES (
     $1,
     $2
 )
-RETURNING id, project_id, status, created_at
+RETURNING id, project_id, status, created_at, port
 `
 
 type CreateDeploymentParams struct {
@@ -34,12 +36,13 @@ func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentPara
 		&i.ProjectID,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Port,
 	)
 	return i, err
 }
 
 const getDeployment = `-- name: GetDeployment :one
-SELECT id, project_id, status, created_at
+SELECT id, project_id, status, created_at, port
 FROM deployments
 WHERE id = $1
 `
@@ -52,12 +55,13 @@ func (q *Queries) GetDeployment(ctx context.Context, id int32) (Deployment, erro
 		&i.ProjectID,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Port,
 	)
 	return i, err
 }
 
 const getDeployments = `-- name: GetDeployments :many
-SELECT id, project_id, status, created_at
+SELECT id, project_id, status, created_at, port
 FROM deployments
 ORDER BY created_at DESC
 `
@@ -76,6 +80,7 @@ func (q *Queries) GetDeployments(ctx context.Context) ([]Deployment, error) {
 			&i.ProjectID,
 			&i.Status,
 			&i.CreatedAt,
+			&i.Port,
 		); err != nil {
 			return nil, err
 		}
@@ -87,11 +92,27 @@ func (q *Queries) GetDeployments(ctx context.Context) ([]Deployment, error) {
 	return items, nil
 }
 
+const updateDeploymentPort = `-- name: UpdateDeploymentPort :exec
+UPDATE deployments
+SET port = $2
+WHERE id = $1
+`
+
+type UpdateDeploymentPortParams struct {
+	ID   int32
+	Port pgtype.Int4
+}
+
+func (q *Queries) UpdateDeploymentPort(ctx context.Context, arg UpdateDeploymentPortParams) error {
+	_, err := q.db.Exec(ctx, updateDeploymentPort, arg.ID, arg.Port)
+	return err
+}
+
 const updateDeploymentStatus = `-- name: UpdateDeploymentStatus :one
 UPDATE deployments
 SET status = $2
 WHERE id = $1
-RETURNING id, project_id, status, created_at
+RETURNING id, project_id, status, created_at, port
 `
 
 type UpdateDeploymentStatusParams struct {
@@ -107,6 +128,7 @@ func (q *Queries) UpdateDeploymentStatus(ctx context.Context, arg UpdateDeployme
 		&i.ProjectID,
 		&i.Status,
 		&i.CreatedAt,
+		&i.Port,
 	)
 	return i, err
 }

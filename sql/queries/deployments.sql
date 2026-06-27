@@ -26,3 +26,9 @@ RETURNING *;
 SELECT *
 FROM deployments
 WHERE id = $1;
+
+
+-- name: UpdateDeploymentPort :exec
+UPDATE deployments
+SET port = $2
+WHERE id = $1;

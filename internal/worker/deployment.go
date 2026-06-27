@@ -46,6 +46,16 @@ func (w *DeploymentWorker)ProcessDeployment(
 
 	path := fmt.Sprintf("./tmp/deployment-%d",deploymentID)
 
+	port := 9000 + int(deploymentID)
+
+	w.DB.UpdateDeploymentPort(
+		context.Background(),
+		database.UpdateDeploymentPortParams{
+			ID: deploymentID,
+			Port: int32(port),
+		},
+	)
+
 
 	_, err = w.Git.Clone(project.RepoUrl,path)
 

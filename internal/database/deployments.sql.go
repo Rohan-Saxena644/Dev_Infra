@@ -7,8 +7,6 @@ package database
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createDeployment = `-- name: CreateDeployment :one
@@ -100,7 +98,7 @@ WHERE id = $1
 
 type UpdateDeploymentPortParams struct {
 	ID   int32
-	Port pgtype.Int4
+	Port int32
 }
 
 func (q *Queries) UpdateDeploymentPort(ctx context.Context, arg UpdateDeploymentPortParams) error {

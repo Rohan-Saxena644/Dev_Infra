@@ -13,7 +13,7 @@ type Deployment struct {
 	ProjectID int32
 	Status    string
 	CreatedAt pgtype.Timestamp
-	Port      pgtype.Int4
+	Port      int32
 }
 
 type Project struct {

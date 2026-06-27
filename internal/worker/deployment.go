@@ -32,16 +32,38 @@ func (w *DeploymentWorker)ProcessDeployment(
 		},
 	)
 
+
+	deployment, err := w.DB.GetDeployment(context.Background(),deploymentID)
+	if err != nil{
+		return 
+	}
+
+	project, err := w.DB.GetProject(context.Background(),deployment.ProjectID)
+	
+	if err != nil{
+		return
+	}
+
+	path := fmt.Sprintf("./tmp/deployment-%d",deploymentID)
+
+
+	_, err = w.Git.Clone(project.RepoUrl,path)
+
+	if err != nil{
+		return
+	}
+
+
 	imageName := fmt.Sprintf("deployment-%d",deploymentID)
 
 	containerName := imageName
 
 	log.Printf("processing deployment %d",deploymentID)
 
-	err := w.Docker.Deploy(
+	err = w.Docker.Deploy(
 		imageName,
 		containerName,
-		"./test-app",
+		path,
 	)
 
 	if err != nil {

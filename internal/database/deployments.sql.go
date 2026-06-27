@@ -38,6 +38,24 @@ func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentPara
 	return i, err
 }
 
+const getDeployment = `-- name: GetDeployment :one
+SELECT id, project_id, status, created_at
+FROM deployments
+WHERE id = $1
+`
+
+func (q *Queries) GetDeployment(ctx context.Context, id int32) (Deployment, error) {
+	row := q.db.QueryRow(ctx, getDeployment, id)
+	var i Deployment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Status,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getDeployments = `-- name: GetDeployments :many
 SELECT id, project_id, status, created_at
 FROM deployments

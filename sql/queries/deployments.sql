@@ -20,3 +20,9 @@ UPDATE deployments
 SET status = $2
 WHERE id = $1
 RETURNING *;
+
+
+-- name: GetDeployment :one
+SELECT *
+FROM deployments
+WHERE id = $1;

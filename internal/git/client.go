@@ -14,3 +14,4 @@ func (c *Client) Clone(repoUrl, destination string)([]byte,error) {
 	).CombinedOutput()
 
 }
+

@@ -17,6 +17,8 @@ type DeploymentWorker struct{
 	Docker *docker.Client
 }
 
+
+
 func (w *DeploymentWorker)ProcessDeployment(
 	deploymentID int32,
 ){
@@ -28,38 +30,63 @@ func (w *DeploymentWorker)ProcessDeployment(
 	)
 
 	imageName := fmt.Sprintf("deployment-%d",deploymentID)
-	
-	output, err := w.Docker.Build(
-		imageName,
-		"./test-app",
-	)
-
-	log.Println(string(output))
-
-	if err != nil {
-		return
-	}
-
 
 	containerName := imageName
 
-	output, err = w.Docker.Run(
-		containerName,
-		imageName,
-	)
+	log.Printf("processing deployment %d",deploymentID)
 
-	log.Println(string(output))
+	err := w.Docker.Deploy(
+		imageName,
+		containerName,
+		"./test-app",
+	)
 
 	if err != nil {
+		// update deployment to failed
+
 		log.Println(err)
+
+		w.DB.UpdateDeploymentStatus(
+			context.Background(),
+			database.UpdateDeploymentStatusParams{
+				ID: deploymentID,
+				Status: "failed",
+			},
+		)
+
+		return
 	}
+	
+	// output, err := w.Docker.Build(
+	// 	imageName,
+	// 	"./test-app",
+	// )
 
-	log.Println(string(output))
+	// log.Println(string(output))
 
-	log.Printf(
-		"processing deployment %d",
-		deploymentID,
-	)
+	// if err != nil {
+	// 	return
+	// }
+
+    // containerName := imageName
+
+	// output, err = w.Docker.Run(
+	// 	containerName,
+	// 	imageName,
+	// )
+
+	// log.Println(string(output))
+
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+
+	// log.Println(string(output))
+
+	// log.Printf(
+	// 	"processing deployment %d",
+	// 	deploymentID,
+	// )
 
 	time.Sleep(5 * time.Second)
 
@@ -76,6 +103,8 @@ func (w *DeploymentWorker)ProcessDeployment(
 		},
 	)
 }
+
+
 
 
 func (w *DeploymentWorker) Start(){

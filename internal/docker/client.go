@@ -39,6 +39,16 @@ func (c *Client) Run(containerName string, image string)([]byte,error){
 }
 
 
-func (c *Client) BuildRun(imageName string,containerName string,path string,)error{
+func (c *Client) Deploy(imageName string,containerName string,path string)error{
+	_,err:= c.Build(imageName,path)
+	if err != nil{
+		return err
+	}
+
+	_,err = c.Run(containerName,imageName)
+	if err != nil{
+		return err
+	}
 	
+	return nil
 }

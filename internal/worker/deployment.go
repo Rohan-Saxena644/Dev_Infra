@@ -48,13 +48,17 @@ func (w *DeploymentWorker)ProcessDeployment(
 
 	port := 9000 + int(deploymentID)
 
-	w.DB.UpdateDeploymentPort(
+	err = w.DB.UpdateDeploymentPort(
 		context.Background(),
 		database.UpdateDeploymentPortParams{
 			ID: deploymentID,
 			Port: int32(port),
 		},
 	)
+
+	if err != nil{
+		return 
+	}
 
 
 	_, err = w.Git.Clone(project.RepoUrl,path)

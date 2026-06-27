@@ -74,6 +74,7 @@ func (w *DeploymentWorker)ProcessDeployment(
 		imageName,
 		containerName,
 		path,
+		port,
 	)
 
 	if err != nil {

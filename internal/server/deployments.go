@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"log"
 
 	// "github.com/Rohan-Saxena644/devinfra/internal/database"
 
@@ -35,7 +36,7 @@ func (s *Server) CreateDeployment(
 		int32(id),
 	)
 
-	s.Worker.Queue <- deployment.ID
+	log.Println(err)
 
 	if err != nil {
 		http.Error(
@@ -45,6 +46,9 @@ func (s *Server) CreateDeployment(
 		)
 		return
 	}
+	
+
+	s.Worker.Queue <- deployment.ID
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

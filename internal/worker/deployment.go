@@ -6,10 +6,12 @@ import (
 	"time"
 
 	"log"
+	"os"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/Rohan-Saxena644/devinfra/internal/docker"
 	"github.com/Rohan-Saxena644/devinfra/internal/git"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 
@@ -35,16 +37,19 @@ func (w *DeploymentWorker)ProcessDeployment(
 
 	deployment, err := w.DB.GetDeployment(context.Background(),deploymentID)
 	if err != nil{
+		log.Println(err)
 		return 
 	}
 
 	project, err := w.DB.GetProject(context.Background(),deployment.ProjectID)
-	
 	if err != nil{
+		log.Println(err)
 		return
 	}
 
 	path := fmt.Sprintf("./tmp/deployment-%d",deploymentID)
+
+	defer os.RemoveAll(path)
 
 	port := 9000 + int(deploymentID)
 
@@ -52,20 +57,30 @@ func (w *DeploymentWorker)ProcessDeployment(
 		context.Background(),
 		database.UpdateDeploymentPortParams{
 			ID: deploymentID,
-			Port: int32(port),
+			Port: pgtype.Int4{
+				Int32: int32(port),
+				Valid: true,
+			},
 		},
 	)
 
 	if err != nil{
+		log.Println(err)
 		return 
 	}
 
 
-	_, err = w.Git.Clone(project.RepoUrl,path)
+	output, err := w.Git.Clone(project.RepoUrl,path)
 
 	if err != nil{
+		log.Println(string(output))
+		log.Println(err)
 		return
 	}
+
+
+	log.Println("Clone complete")
+	log.Println("Calling Docker.Deploy")
 
 
 	imageName := fmt.Sprintf("deployment-%d",deploymentID)
@@ -135,19 +150,30 @@ func (w *DeploymentWorker)ProcessDeployment(
 		deploymentID,
 	)
 
-	w.DB.UpdateDeploymentStatus(
+
+	log.Println("Updating status to success")
+
+	_,err = w.DB.UpdateDeploymentStatus(
 		context.Background(),
 		database.UpdateDeploymentStatusParams{
 			ID: deploymentID,
 			Status: "success",
 		},
 	)
+
+	if err != nil{
+		log.Println(err)
+		return
+	}
 }
 
 
 
 
 func (w *DeploymentWorker) Start(){
+
+	log.Println("worker goroutine started")
+
 	for deploymentID := range w.Queue{
 		w.ProcessDeployment(deploymentID)
 	}

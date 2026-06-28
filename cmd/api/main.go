@@ -19,11 +19,14 @@ import (
 	"github.com/Rohan-Saxena644/devinfra/internal/worker"
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 )
 
 func main(){
 
-	conn, err := pgx.Connect(context.Background(),"postgres://admin:admin@localhost:15432/devinfra?sslmode=disable")
+	godotenv.Load(".env.local")
+
+	conn, err := pgx.Connect(context.Background(),os.Getenv("DATABASE_URL"))
 	if err != nil{
 		log.Fatal(err)
 	}

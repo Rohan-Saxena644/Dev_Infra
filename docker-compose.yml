@@ -1,11 +1,33 @@
 services:
+
   postgres:
     image: postgres:17
-
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: devinfra
-
     ports:
       - "15432:5432"
+    volumes:
+      # Named volume — data survives container restarts
+      - postgres_data:/var/lib/postgresql/data
+
+  devinfra:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      # "postgres" = service name above, port 5432 = internal container port
+      DATABASE_URL: postgres://admin:admin@postgres:5432/devinfra?sslmode=disable
+      PORT: "8080"
+    depends_on:
+      - postgres
+    volumes:
+      # Gives devinfra access to host Docker daemon
+      - /var/run/docker.sock:/var/run/docker.sock
+      # tmp/ cloned repos need to persist during a deployment
+      - ./tmp:/app/tmp
+
+# Declare named volume at top level
+volumes:
+  postgres_data:

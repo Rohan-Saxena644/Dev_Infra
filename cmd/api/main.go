@@ -67,6 +67,7 @@ func main(){
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logging)
+	r.Use(middleware.Cors)
 
 	r.Post("/projects",srv.CreateProject)
 	r.Get("/projects", srv.GetProjects)

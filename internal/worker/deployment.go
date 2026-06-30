@@ -23,6 +23,20 @@ type DeploymentWorker struct{
 }
 
 
+func (w *DeploymentWorker) markFailed(deploymentID int32) {
+	_, err := w.DB.UpdateDeploymentStatus(
+		context.Background(),
+		database.UpdateDeploymentStatusParams{
+			ID:     deploymentID,
+			Status: "failed",
+		},
+	)
+	if err != nil {
+		log.Println("failed to mark deployment as failed:", err)
+	}
+}
+
+
 
 func (w *DeploymentWorker)ProcessDeployment(
 	deploymentID int32,
@@ -38,12 +52,14 @@ func (w *DeploymentWorker)ProcessDeployment(
 	deployment, err := w.DB.GetDeployment(context.Background(),deploymentID)
 	if err != nil{
 		log.Println(err)
+		w.markFailed(deploymentID)
 		return 
 	}
 
 	project, err := w.DB.GetProject(context.Background(),deployment.ProjectID)
 	if err != nil{
 		log.Println(err)
+		w.markFailed(deploymentID)
 		return
 	}
 
@@ -66,6 +82,7 @@ func (w *DeploymentWorker)ProcessDeployment(
 
 	if err != nil{
 		log.Println(err)
+		w.markFailed(deploymentID)
 		return 
 	}
 
@@ -75,6 +92,7 @@ func (w *DeploymentWorker)ProcessDeployment(
 	if err != nil{
 		log.Println(string(output))
 		log.Println(err)
+		w.markFailed(deploymentID)
 		return
 	}
 
@@ -98,17 +116,8 @@ func (w *DeploymentWorker)ProcessDeployment(
 
 	if err != nil {
 		// update deployment to failed
-
 		log.Println(err)
-
-		w.DB.UpdateDeploymentStatus(
-			context.Background(),
-			database.UpdateDeploymentStatusParams{
-				ID: deploymentID,
-				Status: "failed",
-			},
-		)
-
+		w.markFailed(deploymentID)
 		return
 	}
 	

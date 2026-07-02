@@ -66,14 +66,16 @@ func main(){
 
 	r := chi.NewRouter()
 
-	r.Use(middleware.Logging)
 	r.Use(middleware.Cors)
+	r.Use(middleware.Logging)
 
 	r.Post("/projects",srv.CreateProject)
 	r.Get("/projects", srv.GetProjects)
 	r.Get("/projects/{id}",srv.GetProject)
+	r.Delete("/projects/{id}", srv.DeleteProject)
 	r.Post("/projects/{id}/deploy", srv.CreateDeployment)
 	r.Get("/deployments", srv.GetDeployments)
+	r.Post("/deployments/{id}/restart", srv.RestartDeployment)
 
 	for i:=0;i<3;i++ {
 		go worker.Start()

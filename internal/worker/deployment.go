@@ -23,6 +23,7 @@ type DeploymentWorker struct{
 }
 
 
+
 func (w *DeploymentWorker) markFailed(deploymentID int32) {
 	_, err := w.DB.UpdateDeploymentStatus(
 		context.Background(),
@@ -33,6 +34,34 @@ func (w *DeploymentWorker) markFailed(deploymentID int32) {
 	)
 	if err != nil {
 		log.Println("failed to mark deployment as failed:", err)
+	}
+}
+
+
+
+func (w *DeploymentWorker) enforceFifoLimit(projectID int32, limit int) {
+	deployments, err := w.DB.GetDeploymentsByProject(context.Background(), projectID)
+	if err != nil {
+		log.Println("fifo: failed to list deployments for project", projectID, err)
+		return
+	}
+
+	if len(deployments) <= limit {
+		return
+	}
+
+	for _, d := range deployments[limit:] {
+		containerName := fmt.Sprintf("deployment-%d", d.ID)
+
+		if out, err := w.Docker.Remove(containerName); err != nil {
+			log.Println("fifo: failed to remove container", containerName, string(out), err)
+		}
+		if out, err := w.Docker.RemoveImage(containerName); err != nil {
+			log.Println("fifo: failed to remove image", containerName, string(out), err)
+		}
+		if err := w.DB.DeleteDeployment(context.Background(), d.ID); err != nil {
+			log.Println("fifo: failed to delete deployment row", d.ID, err)
+		}
 	}
 }
 
@@ -174,6 +203,8 @@ func (w *DeploymentWorker)ProcessDeployment(
 		log.Println(err)
 		return
 	}
+
+	w.enforceFifoLimit(project.ID, 10)
 }
 
 

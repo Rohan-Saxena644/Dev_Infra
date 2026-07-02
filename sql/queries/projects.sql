@@ -19,3 +19,7 @@ ORDER BY created_at DESC;
 SELECT *
 FROM projects
 WHERE id = $1;
+
+-- name: DeleteProject :exec
+DELETE FROM projects
+WHERE id = $1;

@@ -41,6 +41,26 @@ func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentPara
 	return i, err
 }
 
+const deleteDeployment = `-- name: DeleteDeployment :exec
+DELETE FROM deployments
+WHERE id = $1
+`
+
+func (q *Queries) DeleteDeployment(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, deleteDeployment, id)
+	return err
+}
+
+const deleteDeploymentsByProject = `-- name: DeleteDeploymentsByProject :exec
+DELETE FROM deployments
+WHERE project_id = $1
+`
+
+func (q *Queries) DeleteDeploymentsByProject(ctx context.Context, projectID int32) error {
+	_, err := q.db.Exec(ctx, deleteDeploymentsByProject, projectID)
+	return err
+}
+
 const getDeployment = `-- name: GetDeployment :one
 SELECT id, project_id, status, created_at, port
 FROM deployments
@@ -68,6 +88,39 @@ ORDER BY created_at DESC
 
 func (q *Queries) GetDeployments(ctx context.Context) ([]Deployment, error) {
 	rows, err := q.db.Query(ctx, getDeployments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Deployment
+	for rows.Next() {
+		var i Deployment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.Port,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDeploymentsByProject = `-- name: GetDeploymentsByProject :many
+SELECT id, project_id, status, created_at, port
+FROM deployments
+WHERE project_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) ([]Deployment, error) {
+	rows, err := q.db.Query(ctx, getDeploymentsByProject, projectID)
 	if err != nil {
 		return nil, err
 	}

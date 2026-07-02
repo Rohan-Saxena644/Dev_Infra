@@ -32,3 +32,17 @@ WHERE id = $1;
 UPDATE deployments
 SET port = $2
 WHERE id = $1;
+
+-- name: GetDeploymentsByProject :many
+SELECT *
+FROM deployments
+WHERE project_id = $1
+ORDER BY created_at DESC;
+
+-- name: DeleteDeployment :exec
+DELETE FROM deployments
+WHERE id = $1;
+
+-- name: DeleteDeploymentsByProject :exec
+DELETE FROM deployments
+WHERE project_id = $1;

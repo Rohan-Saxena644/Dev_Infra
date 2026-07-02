@@ -3,6 +3,7 @@ package docker
 import (
 	"os/exec"
 	"fmt"
+	"strings"
 )
 
 type Client struct{}
@@ -25,12 +26,14 @@ func (c *Client) Build(tag string, path string)([]byte,error){
 	).CombinedOutput()
 }
 
+
 func (c *Client) Run(containerName string, image string , port int)([]byte,error){
 	return exec.Command(
 		"docker",
 		"run",
 		"-d",
-		"--rm",
+		"--restart",
+		"unless-stopped",
 		"--name",
 		containerName,
 		"-p",
@@ -52,4 +55,59 @@ func (c *Client) Deploy(imageName string,containerName string,path string, port 
 	}
 	
 	return nil
+}
+
+
+func (c *Client) Stop(containerName string) ([]byte, error) {
+	return exec.Command(
+		"docker",
+		"stop",
+		containerName,
+	).CombinedOutput()
+}
+
+
+func (c *Client) Start(containerName string) ([]byte, error) {
+	return exec.Command(
+		"docker",
+		"start",
+		containerName,
+	).CombinedOutput()
+}
+
+
+func (c *Client) Remove(containerName string) ([]byte, error) {
+	return exec.Command(
+		"docker",
+		"rm",
+		"-f",
+		containerName,
+	).CombinedOutput()
+}
+
+
+func (c *Client) RemoveImage(imageName string) ([]byte, error) {
+	return exec.Command(
+		"docker",
+		"rmi",
+		"-f",
+		imageName,
+	).CombinedOutput()
+}
+
+
+func (c *Client) IsRunning(containerName string) (bool, error) {
+	out, err := exec.Command(
+		"docker",
+		"inspect",
+		"-f",
+		"{{.State.Running}}",
+		containerName,
+	).CombinedOutput()
+
+	if err != nil {
+		return false, nil
+	}
+
+	return strings.TrimSpace(string(out)) == "true", nil
 }

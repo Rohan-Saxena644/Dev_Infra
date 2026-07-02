@@ -3,6 +3,8 @@ package server
 import (
 	// "context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -95,4 +97,42 @@ func (s *Server) GetProject(
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(project)
 
+}
+
+
+
+func (s *Server) DeleteProject(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "invalid project id", http.StatusBadRequest)
+		return
+	}
+
+	deployments, err := s.ProjectService.GetDeploymentsByProject(int32(id))
+	if err != nil {
+		http.Error(w, "failed to look up deployments for project", http.StatusInternalServerError)
+		return
+	}
+
+	for _, d := range deployments {
+		containerName := fmt.Sprintf("deployment-%d", d.ID)
+
+		if out, err := s.Worker.Docker.Remove(containerName); err != nil {
+			log.Println("delete project: failed to remove container", containerName, string(out), err)
+		}
+		if out, err := s.Worker.Docker.RemoveImage(containerName); err != nil {
+			log.Println("delete project: failed to remove image", containerName, string(out), err)
+		}
+	}
+
+	if err := s.ProjectService.DeleteProject(int32(id)); err != nil {
+		http.Error(w, "failed to delete project", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

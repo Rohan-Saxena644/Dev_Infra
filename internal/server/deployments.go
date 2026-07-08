@@ -4,9 +4,10 @@ import (
 	// "context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
-	"log"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 
@@ -14,8 +15,6 @@ import (
 	//"github.com/Rohan-Saxena644/devinfra/internal/worker" same as above in the server struct it was imported the db is connected to the reference struct pointer
 	"github.com/go-chi/chi"
 )
-
-
 
 func (s *Server) CreateDeployment(
 	w http.ResponseWriter,
@@ -37,9 +36,8 @@ func (s *Server) CreateDeployment(
 		int32(id),
 	)
 
-	log.Println(err)
-
 	if err != nil {
+		slog.Error("failed to create deployment", "project_id", id, "error", err)
 		http.Error(
 			w,
 			"failed to create deployment",
@@ -47,7 +45,6 @@ func (s *Server) CreateDeployment(
 		)
 		return
 	}
-	
 
 	s.Worker.Queue <- deployment.ID
 
@@ -55,8 +52,6 @@ func (s *Server) CreateDeployment(
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(deployment)
 }
-
-
 
 type DeploymentResponse struct {
 	database.Deployment
@@ -66,10 +61,11 @@ type DeploymentResponse struct {
 func (s *Server) GetDeployments(
 	w http.ResponseWriter,
 	r *http.Request,
-){
+) {
 
-	deployments,err := s.ProjectService.GetDeployments()
-	if err != nil{
+	deployments, err := s.ProjectService.GetDeployments()
+	if err != nil {
+		slog.Error("failed to get deployments", "error", err)
 		http.Error(
 			w,
 			"failed to get deployments",
@@ -96,8 +92,6 @@ func (s *Server) GetDeployments(
 	json.NewEncoder(w).Encode(response)
 }
 
-
-
 func (s *Server) RestartDeployment(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -111,6 +105,7 @@ func (s *Server) RestartDeployment(
 
 	deployment, err := s.ProjectService.GetDeployment(int32(id))
 	if err != nil {
+		slog.Error("deployment not found", "deployment_id", id, "error", err)
 		http.Error(w, "deployment not found", http.StatusNotFound)
 		return
 	}

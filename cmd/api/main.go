@@ -18,21 +18,30 @@ import (
 	"github.com/Rohan-Saxena644/devinfra/internal/service"
 	"github.com/Rohan-Saxena644/devinfra/internal/worker"
 	"github.com/go-chi/chi"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
-func main(){
+func main() {
 
 	godotenv.Load(".env.local")
 
-	conn, err := pgx.Connect(context.Background(),os.Getenv("DATABASE_URL"))
-	if err != nil{
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+
+	dbpool, err := pgxpool.New(context.Background(), databaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dbpool.Close()
+
+	if err := dbpool.Ping(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
-	defer conn.Close(context.Background())
-	queries := database.New(conn)
+	queries := database.New(dbpool)
 
 	// srv := &server.Server{
 	// 	DB: queries,
@@ -77,7 +86,7 @@ func main(){
 	r.Get("/deployments", srv.GetDeployments)
 	r.Post("/deployments/{id}/restart", srv.RestartDeployment)
 
-	for i:=0;i<3;i++ {
+	for i := 0; i < 3; i++ {
 		go worker.Start()
 	}
 
@@ -97,7 +106,6 @@ func main(){
 			log.Fatal(err)
 		}
 	}()
-
 
 	<-ctx.Done()
 

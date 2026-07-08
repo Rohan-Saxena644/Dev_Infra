@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -34,6 +35,7 @@ func (s *Server) CreateProject(
 	project, err := s.ProjectService.CreateProject(req.Name,req.RepoURL)
 
 	if err != nil {
+		slog.Error("failed to create project", "error", err)
 		http.Error(w, "failed to create project", http.StatusInternalServerError)
 		return
 	}
@@ -43,37 +45,33 @@ func (s *Server) CreateProject(
 	json.NewEncoder(w).Encode(project)
 }
 
-
-
 func (s *Server) GetProjects(
 	w http.ResponseWriter,
 	r *http.Request,
 ){
 	projects,err := s.ProjectService.GetProjects()
 	if err != nil{
+		slog.Error("failed to fetch projects", "error", err)
 		http.Error(
 			w,
 			"failed to fetch projects",
 			http.StatusInternalServerError,
 		)
 
-		return 
+		return
 	}
 
 	w.Header().Set("Content-type","application/json")
 	json.NewEncoder(w).Encode(projects)
 }
 
-
-
-
 func (s *Server) GetProject(
 	w http.ResponseWriter,
 	r *http.Request,
-){
-	idstr := chi.URLParam(r,"id")
-	id,err := strconv.Atoi(idstr)
-	if err != nil{
+) {
+	idstr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idstr)
+	if err != nil {
 		http.Error(
 			w,
 			"failed to parsde the id from the params",
@@ -82,10 +80,10 @@ func (s *Server) GetProject(
 		return
 	}
 
-
 	project , err :=s.ProjectService.GetProject(int32(id))
 
-	if err != nil{
+	if err != nil {
+		slog.Error("failed to get project", "id", id, "error", err)
 		http.Error(
 			w,
 			"failed to get the id from the database",
@@ -98,8 +96,6 @@ func (s *Server) GetProject(
 	json.NewEncoder(w).Encode(project)
 
 }
-
-
 
 func (s *Server) DeleteProject(
 	w http.ResponseWriter,
@@ -114,6 +110,7 @@ func (s *Server) DeleteProject(
 
 	deployments, err := s.ProjectService.GetDeploymentsByProject(int32(id))
 	if err != nil {
+		slog.Error("failed to look up deployments for project", "project_id", id, "error", err)
 		http.Error(w, "failed to look up deployments for project", http.StatusInternalServerError)
 		return
 	}
@@ -130,6 +127,7 @@ func (s *Server) DeleteProject(
 	}
 
 	if err := s.ProjectService.DeleteProject(int32(id)); err != nil {
+		slog.Error("failed to delete project", "project_id", id, "error", err)
 		http.Error(w, "failed to delete project", http.StatusInternalServerError)
 		return
 	}

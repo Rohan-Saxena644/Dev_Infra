@@ -78,6 +78,8 @@ func main() {
 	r.Use(middleware.Cors)
 	r.Use(middleware.Logging)
 
+	r.Post("/auth/signup", srv.SignUp)
+	r.Post("/auth/login", srv.Login)
 	r.Post("/projects",srv.CreateProject)
 	r.Get("/projects", srv.GetProjects)
 	r.Get("/projects/{id}",srv.GetProject)

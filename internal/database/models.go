@@ -21,4 +21,12 @@ type Project struct {
 	Name      string
 	RepoUrl   string
 	CreatedAt pgtype.Timestamp
+	UserID    pgtype.Int4
+}
+
+type User struct {
+	ID           int32
+	Email        string
+	PasswordHash string
+	CreatedAt    pgtype.Timestamp
 }

@@ -18,7 +18,7 @@ VALUES (
     $1,
     $2
 )
-RETURNING id, name, repo_url, created_at
+RETURNING id, name, repo_url, created_at, user_id
 `
 
 type CreateProjectParams struct {
@@ -34,6 +34,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Name,
 		&i.RepoUrl,
 		&i.CreatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -49,7 +50,7 @@ func (q *Queries) DeleteProject(ctx context.Context, id int32) error {
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, name, repo_url, created_at
+SELECT id, name, repo_url, created_at, user_id
 FROM projects
 WHERE id = $1
 `
@@ -62,12 +63,13 @@ func (q *Queries) GetProject(ctx context.Context, id int32) (Project, error) {
 		&i.Name,
 		&i.RepoUrl,
 		&i.CreatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const getProjects = `-- name: GetProjects :many
-SELECT id, name, repo_url, created_at
+SELECT id, name, repo_url, created_at, user_id
 FROM projects
 ORDER BY created_at DESC
 `
@@ -86,6 +88,7 @@ func (q *Queries) GetProjects(ctx context.Context) ([]Project, error) {
 			&i.Name,
 			&i.RepoUrl,
 			&i.CreatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}

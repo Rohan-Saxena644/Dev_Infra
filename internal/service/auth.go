@@ -2,11 +2,15 @@ package service
 
 import (
 	"context"
-	"github.com/Rohan-Saxena644/devinfra/internal/database"
-	"golang.org/x/crypto/bcrypt"
-	"strings"
-	"net/mail"
 	"errors"
+	"net/mail"
+	"strings"
+
+	"github.com/Rohan-Saxena644/devinfra/internal/database"
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
+	"time"
+	"os"
 )
 
 func HashPassword(password string) (string, error) {
@@ -24,22 +28,89 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
+type Claims struct{
+	UserID int32 `json:"user_id"`
+	Email string `json:"email"`
+	jwt.RegisteredClaims
+}
 
-func (s *ProjectService) SignUp(email,password string) (database.User, error) {
+func GenerateToken(user database.User) (string,error){
+	claims := Claims{
+		UserID: user.ID,
+		Email: user.Email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt: jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+
+	secret := os.Getenv("SECRET")
+
+	if secret == "" {
+		return "", errors.New("SECRET environment variable is not set")
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
+func (s *ProjectService) SignUp(email,password string) (string, database.User, error) {
 
 	passwordHash, err := HashPassword(password)
 	if err != nil {
-		return database.User{}, err
+		return "", database.User{}, err
 	}
 
 	if !IsValidGmailID(email) {
-		return database.User{}, errors.New("invalid gmail id")
+		return "", database.User{}, errors.New("invalid gmail id")
 	}
 	
-	return s.DB.CreateUser(context.Background(), database.CreateUserParams{
+	user,err := s.DB.CreateUser(context.Background(), database.CreateUserParams{
 		Email: email,
 		PasswordHash: passwordHash,
 	})
+
+	if err != nil {
+		return "", database.User{}, err
+	}
+
+	token, err := GenerateToken(user)
+
+	if err != nil {
+		return "", database.User{}, err
+	}
+
+	return token, user, nil
+}
+
+
+func (s *ProjectService) Login(email, password string)(string,database.User,error){
+	if !IsValidGmailID(email){
+		return "",database.User{}, errors.New("invalid gmail id")
+	}
+
+	user, err := s.DB.GetUserByEmail(context.Background(), email)
+	if err != nil{
+		return "",database.User{},err
+	}
+
+
+	if !CheckPasswordHash(password, user.PasswordHash) {
+		return "",database.User{}, errors.New("invalid password")
+	}
+
+	token,err := GenerateToken(user)
+	if err != nil{
+		return "",database.User{},err
+	}
+
+	return token, user, nil
 }
 
 

@@ -9,10 +9,12 @@ VALUES (
 )
 RETURNING *;
 
--- name: GetDeployments :many
-SELECT *
+-- name: GetDeploymentsByUser :many
+SELECT deployments.*
 FROM deployments
-ORDER BY created_at DESC;
+JOIN projects ON projects.id = deployments.project_id
+WHERE projects.user_id = $1
+ORDER BY deployments.created_at DESC;
 
 
 -- name: UpdateDeploymentStatus :one

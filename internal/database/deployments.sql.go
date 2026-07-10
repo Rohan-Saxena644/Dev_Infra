@@ -80,14 +80,15 @@ func (q *Queries) GetDeployment(ctx context.Context, id int32) (Deployment, erro
 	return i, err
 }
 
-const getDeployments = `-- name: GetDeployments :many
+const getDeploymentsByProject = `-- name: GetDeploymentsByProject :many
 SELECT id, project_id, status, created_at, port
 FROM deployments
+WHERE project_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetDeployments(ctx context.Context) ([]Deployment, error) {
-	rows, err := q.db.Query(ctx, getDeployments)
+func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) ([]Deployment, error) {
+	rows, err := q.db.Query(ctx, getDeploymentsByProject, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -112,15 +113,16 @@ func (q *Queries) GetDeployments(ctx context.Context) ([]Deployment, error) {
 	return items, nil
 }
 
-const getDeploymentsByProject = `-- name: GetDeploymentsByProject :many
-SELECT id, project_id, status, created_at, port
+const getDeploymentsByUser = `-- name: GetDeploymentsByUser :many
+SELECT deployments.id, deployments.project_id, deployments.status, deployments.created_at, deployments.port
 FROM deployments
-WHERE project_id = $1
-ORDER BY created_at DESC
+JOIN projects ON projects.id = deployments.project_id
+WHERE projects.user_id = $1
+ORDER BY deployments.created_at DESC
 `
 
-func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) ([]Deployment, error) {
-	rows, err := q.db.Query(ctx, getDeploymentsByProject, projectID)
+func (q *Queries) GetDeploymentsByUser(ctx context.Context, userID pgtype.Int4) ([]Deployment, error) {
+	rows, err := q.db.Query(ctx, getDeploymentsByUser, userID)
 	if err != nil {
 		return nil, err
 	}

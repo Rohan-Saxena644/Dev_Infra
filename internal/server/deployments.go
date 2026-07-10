@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
+	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
 
 	// "github.com/Rohan-Saxena644/devinfra/internal/service" was imported in the server struct from there the db is working entirely
 	//"github.com/Rohan-Saxena644/devinfra/internal/worker" same as above in the server struct it was imported the db is connected to the reference struct pointer
@@ -32,16 +33,23 @@ func (s *Server) CreateDeployment(
 		return
 	}
 
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	deployment, err := s.ProjectService.CreateDeployment(
 		int32(id),
+		userID,
 	)
 
 	if err != nil {
 		slog.Error("failed to create deployment", "project_id", id, "error", err)
 		http.Error(
 			w,
-			"failed to create deployment",
-			http.StatusInternalServerError,
+			"project not found",
+			http.StatusNotFound,
 		)
 		return
 	}
@@ -63,7 +71,13 @@ func (s *Server) GetDeployments(
 	r *http.Request,
 ) {
 
-	deployments, err := s.ProjectService.GetDeployments()
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	deployments, err := s.ProjectService.GetDeployments(userID)
 	if err != nil {
 		slog.Error("failed to get deployments", "error", err)
 		http.Error(
@@ -103,7 +117,13 @@ func (s *Server) RestartDeployment(
 		return
 	}
 
-	deployment, err := s.ProjectService.GetDeployment(int32(id))
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	deployment, err := s.ProjectService.GetDeployment(int32(id), userID)
 	if err != nil {
 		slog.Error("deployment not found", "deployment_id", id, "error", err)
 		http.Error(w, "deployment not found", http.StatusNotFound)

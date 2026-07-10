@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
+
 	// "github.com/Rohan-Saxena644/devinfra/internal/database"
 
 	// "github.com/Rohan-Saxena644/devinfra/internal/service" was imported in the server struct from there the db is working entirely
@@ -28,11 +30,17 @@ func (s *Server) CreateProject(
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(w,"invalid json", http.StatusBadRequest)
+		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
 
-	project, err := s.ProjectService.CreateProject(req.Name,req.RepoURL)
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	project, err := s.ProjectService.CreateProject(req.Name, req.RepoURL, userID)
 
 	if err != nil {
 		slog.Error("failed to create project", "error", err)
@@ -48,9 +56,15 @@ func (s *Server) CreateProject(
 func (s *Server) GetProjects(
 	w http.ResponseWriter,
 	r *http.Request,
-){
-	projects,err := s.ProjectService.GetProjects()
-	if err != nil{
+) {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	projects, err := s.ProjectService.GetProjects(userID)
+	if err != nil {
 		slog.Error("failed to fetch projects", "error", err)
 		http.Error(
 			w,
@@ -61,7 +75,7 @@ func (s *Server) GetProjects(
 		return
 	}
 
-	w.Header().Set("Content-type","application/json")
+	w.Header().Set("Content-type", "application/json")
 	json.NewEncoder(w).Encode(projects)
 }
 
@@ -80,14 +94,20 @@ func (s *Server) GetProject(
 		return
 	}
 
-	project , err :=s.ProjectService.GetProject(int32(id))
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	project, err := s.ProjectService.GetProject(int32(id), userID)
 
 	if err != nil {
 		slog.Error("failed to get project", "id", id, "error", err)
 		http.Error(
 			w,
-			"failed to get the id from the database",
-			http.StatusInternalServerError,
+			"project not found",
+			http.StatusNotFound,
 		)
 		return
 	}
@@ -108,10 +128,16 @@ func (s *Server) DeleteProject(
 		return
 	}
 
-	deployments, err := s.ProjectService.GetDeploymentsByProject(int32(id))
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	deployments, err := s.ProjectService.GetDeploymentsByProject(int32(id), userID)
 	if err != nil {
 		slog.Error("failed to look up deployments for project", "project_id", id, "error", err)
-		http.Error(w, "failed to look up deployments for project", http.StatusInternalServerError)
+		http.Error(w, "project not found", http.StatusNotFound)
 		return
 	}
 
@@ -126,7 +152,7 @@ func (s *Server) DeleteProject(
 		}
 	}
 
-	if err := s.ProjectService.DeleteProject(int32(id)); err != nil {
+	if err := s.ProjectService.DeleteProject(int32(id), userID); err != nil {
 		slog.Error("failed to delete project", "project_id", id, "error", err)
 		http.Error(w, "failed to delete project", http.StatusInternalServerError)
 		return

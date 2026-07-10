@@ -51,7 +51,6 @@ func main() {
 		DB: queries,
 	}
 
-	
 	dockerClient := &docker.Client{}
 	git := &git.Client{}
 
@@ -59,12 +58,12 @@ func main() {
 		DB:     queries,
 		Queue:  make(chan int32, 100),
 		Docker: dockerClient,
-		Git: git,
+		Git:    git,
 	}
 
 	srv := &server.Server{
 		ProjectService: projectService,
-		Worker: worker,
+		Worker:         worker,
 	}
 
 	ctx, stop := signal.NotifyContext(
@@ -80,20 +79,25 @@ func main() {
 
 	r.Post("/auth/signup", srv.SignUp)
 	r.Post("/auth/login", srv.Login)
-	r.Post("/projects",srv.CreateProject)
-	r.Get("/projects", srv.GetProjects)
-	r.Get("/projects/{id}",srv.GetProject)
-	r.Delete("/projects/{id}", srv.DeleteProject)
-	r.Post("/projects/{id}/deploy", srv.CreateDeployment)
-	r.Get("/deployments", srv.GetDeployments)
-	r.Post("/deployments/{id}/restart", srv.RestartDeployment)
+
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth)
+
+		r.Post("/projects", srv.CreateProject)
+		r.Get("/projects", srv.GetProjects)
+		r.Get("/projects/{id}", srv.GetProject)
+		r.Delete("/projects/{id}", srv.DeleteProject)
+		r.Post("/projects/{id}/deploy", srv.CreateDeployment)
+		r.Get("/deployments", srv.GetDeployments)
+		r.Post("/deployments/{id}/restart", srv.RestartDeployment)
+	})
 
 	for i := 0; i < 3; i++ {
 		go worker.Start()
 	}
 
 	httpserver := &http.Server{
-		Addr: ":8080",
+		Addr:    ":8080",
 		Handler: r,
 	}
 

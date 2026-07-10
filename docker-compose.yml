@@ -25,6 +25,7 @@ services:
     environment:
       DATABASE_URL: postgres://admin:admin@postgres:5432/devinfra?sslmode=disable
       PORT: "8080"
+      SECRET: ohfioehfiewhfihe08239reufehfioejh
     depends_on:
       postgres:
         condition: service_healthy

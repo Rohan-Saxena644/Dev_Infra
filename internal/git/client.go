@@ -10,7 +10,7 @@ type Client struct{}
 
 func (c *Client) Clone(repoUrl, destination string)([]byte,error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	return exec.CommandContext(ctx,

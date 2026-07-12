@@ -52,6 +52,22 @@ func (s *ProjectService) CreateDeployment(projectID int32, userID int32) (databa
 		return database.Deployment{}, err
 	}
 
+	count, err := s.DB.CountActiveDeploymentsByUser(
+		context.Background(),
+		pgtype.Int4{
+			Int32: userID,
+			Valid: true,
+		},
+	)
+
+	if err != nil {
+		return database.Deployment{}, err
+	}
+
+	if count >= 3 {
+		return database.Deployment{}, errors.New("deployment limit reached")
+	}
+
 	_,err = s.DB.GetActiveDeploymentByProject(context.Background(),projectID)
 	if err == nil {
 		return database.Deployment{}, errors.New("deployment already running")

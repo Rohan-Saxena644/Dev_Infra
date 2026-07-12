@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countActiveDeploymentsByUser = `-- name: CountActiveDeploymentsByUser :one
+SELECT COUNT(*)
+FROM deployments
+JOIN projects ON projects.id = deployments.project_id
+WHERE projects.user_id = $1
+AND deployments.status IN ('queued', 'running', 'success')
+`
+
+func (q *Queries) CountActiveDeploymentsByUser(ctx context.Context, userID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveDeploymentsByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createDeployment = `-- name: CreateDeployment :one
 INSERT INTO deployments (
     project_id,

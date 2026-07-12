@@ -55,6 +55,16 @@ func (s *Server) CreateDeployment(
 	// }
 
 	if err != nil {
+
+		if err.Error() == "deployment limit reached" {
+			http.Error(
+				w,
+				"deployment limit reached",
+				http.StatusTooManyRequests,
+			)
+			return
+		}
+
 		if err.Error() == "deployment already running" {
 			http.Error(w, "deployment already running", http.StatusConflict)
 			return

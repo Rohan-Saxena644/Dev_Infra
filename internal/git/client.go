@@ -1,12 +1,19 @@
 package git
 
-import "os/exec"
+import (
+"context"
+"time"
+"os/exec"
+)
 
 type Client struct{}
 
 func (c *Client) Clone(repoUrl, destination string)([]byte,error) {
 
-	return exec.Command(
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	return exec.CommandContext(ctx,
 		"git",
 		"clone",
 		repoUrl,

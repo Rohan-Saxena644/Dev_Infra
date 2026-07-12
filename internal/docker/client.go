@@ -4,6 +4,8 @@ import (
 	"os/exec"
 	"fmt"
 	"strings"
+	"context"
+	"time"
 )
 
 type Client struct{}
@@ -17,7 +19,12 @@ func (c *Client)DockerPS()([]byte,error){
 
 
 func (c *Client) Build(tag string, path string)([]byte,error){
-	return exec.Command(
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+
+	return exec.CommandContext(ctx,
 		"docker",
 		"build",
 		"-t",
@@ -28,7 +35,11 @@ func (c *Client) Build(tag string, path string)([]byte,error){
 
 
 func (c *Client) Run(containerName string, image string , port int)([]byte,error){
-	return exec.Command(
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	return exec.CommandContext(ctx,
 		"docker",
 		"run",
 		"-d",

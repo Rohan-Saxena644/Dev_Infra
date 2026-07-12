@@ -44,13 +44,24 @@ func (s *Server) CreateDeployment(
 		userID,
 	)
 
+	// if err != nil {
+	// 	slog.Error("failed to create deployment", "project_id", id, "error", err)
+	// 	http.Error(
+	// 		w,
+	// 		"project not found",
+	// 		http.StatusNotFound,
+	// 	)
+	// 	return
+	// }
+
 	if err != nil {
+		if err.Error() == "deployment already running" {
+			http.Error(w, "deployment already running", http.StatusConflict)
+			return
+		}
+
 		slog.Error("failed to create deployment", "project_id", id, "error", err)
-		http.Error(
-			w,
-			"project not found",
-			http.StatusNotFound,
-		)
+		http.Error(w, "project not found", http.StatusNotFound)
 		return
 	}
 

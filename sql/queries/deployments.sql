@@ -48,3 +48,13 @@ WHERE id = $1;
 -- name: DeleteDeploymentsByProject :exec
 DELETE FROM deployments
 WHERE project_id = $1;
+
+
+
+-- name: GetActiveDeploymentByProject :one
+SELECT *
+FROM deployments
+WHERE project_id = $1
+AND status IN ('queued', 'running')
+ORDER BY created_at DESC
+LIMIT 1;

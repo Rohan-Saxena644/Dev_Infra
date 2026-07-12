@@ -61,6 +61,28 @@ func (q *Queries) DeleteDeploymentsByProject(ctx context.Context, projectID int3
 	return err
 }
 
+const getActiveDeploymentByProject = `-- name: GetActiveDeploymentByProject :one
+SELECT id, project_id, status, created_at, port
+FROM deployments
+WHERE project_id = $1
+AND status IN ('queued', 'running')
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetActiveDeploymentByProject(ctx context.Context, projectID int32) (Deployment, error) {
+	row := q.db.QueryRow(ctx, getActiveDeploymentByProject, projectID)
+	var i Deployment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.Port,
+	)
+	return i, err
+}
+
 const getDeployment = `-- name: GetDeployment :one
 SELECT id, project_id, status, created_at, port
 FROM deployments

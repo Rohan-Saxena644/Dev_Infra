@@ -3,7 +3,10 @@ package service
 import (
 	"context"
 
+	"errors"
+
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -46,6 +49,15 @@ func (s *ProjectService) GetProject(id int32, userID int32) (database.Project, e
 func (s *ProjectService) CreateDeployment(projectID int32, userID int32) (database.Deployment, error) {
 	_, err := s.GetProject(projectID, userID)
 	if err != nil {
+		return database.Deployment{}, err
+	}
+
+	_,err = s.DB.GetActiveDeploymentByProject(context.Background(),projectID)
+	if err == nil {
+		return database.Deployment{}, errors.New("deployment already running")
+	}
+
+	if err != pgx.ErrNoRows{
 		return database.Deployment{}, err
 	}
 

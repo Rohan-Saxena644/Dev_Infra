@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"errors"
+	"net/url"
+	"strings"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/jackc/pgx/v5"
@@ -14,11 +16,37 @@ type ProjectService struct {
 	DB *database.Queries
 }
 
+func isValidGitHubRepoURL(repoURL string) bool {
+	parsedURL, err := url.ParseRequestURI(repoURL)
+	if err != nil {
+		return false
+	}
+
+	if parsedURL.Scheme != "https" || parsedURL.Host != "github.com" || parsedURL.User != nil {
+		return false
+	}
+
+	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return false
+	}
+
+	path := strings.TrimSuffix(strings.Trim(parsedURL.Path, "/"), ".git")
+	parts := strings.Split(path, "/")
+
+	return len(parts) == 2 &&
+		parts[0] != "" && parts[0] != "." && parts[0] != ".." &&
+		parts[1] != "" && parts[1] != "." && parts[1] != ".."
+}
+
 func (s *ProjectService) CreateProject(
 	name string,
 	repoURL string,
 	userID int32,
 ) (database.Project, error) {
+	if !isValidGitHubRepoURL(repoURL) {
+		return database.Project{}, errors.New("invalid repository url")
+	}
+
 	return s.DB.CreateProject(context.Background(), database.CreateProjectParams{
 		Name:    name,
 		RepoUrl: repoURL,

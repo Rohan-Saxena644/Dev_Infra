@@ -23,6 +23,8 @@ type AuthResponse struct {
 func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
 	var req AuthRequest
 
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
@@ -46,6 +48,8 @@ func (s *Server) SignUp(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	var req AuthRequest
+
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)

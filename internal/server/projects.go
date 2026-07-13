@@ -28,6 +28,8 @@ func (s *Server) CreateProject(
 ) {
 	var req CreateProjectRequest
 
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
@@ -43,6 +45,11 @@ func (s *Server) CreateProject(
 	project, err := s.ProjectService.CreateProject(req.Name, req.RepoURL, userID)
 
 	if err != nil {
+		if err.Error() == "invalid repository url" {
+			http.Error(w, "invalid github repository url", http.StatusBadRequest)
+			return
+		}
+
 		slog.Error("failed to create project", "error", err)
 		http.Error(w, "failed to create project", http.StatusInternalServerError)
 		return

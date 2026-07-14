@@ -70,7 +70,6 @@ Docker Run
 
 * AWS EC2 Remote Deployment
 * Docker Compose Support
-* Kubernetes Deployments
 * Authentication & Authorization
 * Redis Caching
 * Rate Limiting

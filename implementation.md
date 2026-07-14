@@ -23,7 +23,7 @@ The project is now past the first MVP stage. The next work should make it more l
 
 ## Phase 1: Auth
 
-Auth should come first because it changes the data model and API ownership rules. It is better to add this before production hardening, Docker Compose support, Kubernetes, or Redis.
+Auth should come first because it changes the data model and API ownership rules. It is better to add this before production hardening, Docker Compose support, or Redis.
 
 ### Backend Goals
 
@@ -349,72 +349,7 @@ ADD COLUMN deployment_type TEXT NOT NULL DEFAULT 'dockerfile';
 - Compose deployments can be deleted.
 - Compose logs can be fetched.
 
-## Phase 5: Kubernetes
-
-Do this after Docker and Compose support are stable. Kubernetes should become another deployment runtime, not a rewrite of everything at once.
-
-### Learning Goal
-
-Replace direct `docker run` with real Kubernetes primitives:
-
-- Deployment
-- Pod
-- Service
-- Ingress
-- ConfigMap
-- Secret
-
-### Architecture Direction
-
-Introduce an interface like:
-
-```go
-type Deployer interface {
-    Deploy(...)
-    Stop(...)
-    Restart(...)
-    Logs(...)
-    Delete(...)
-}
-```
-
-Implement:
-
-- DockerDeployer
-- ComposeDeployer
-- KubernetesDeployer
-
-Do not start with this abstraction too early. Add it when Docker Compose support makes duplication obvious.
-
-### Kubernetes MVP
-
-- Build image.
-- Push image to registry.
-- Create Kubernetes Deployment.
-- Create Service.
-- Expose through Ingress or NodePort.
-- Track status.
-- Fetch pod logs.
-
-### New Requirements
-
-Kubernetes likely requires:
-
-- Container registry
-- kubeconfig
-- namespace management
-- image naming strategy
-- cleanup strategy
-
-### Done Criteria
-
-- One project can deploy to Kubernetes.
-- Logs are visible.
-- Restart works.
-- Delete cleans up K8s resources.
-- Docker-based deployment still works.
-
-## Phase 6: Redis
+## Phase 5: Redis
 
 Redis comes last because it becomes most useful once auth and production flows exist.
 
@@ -469,7 +404,7 @@ Avoid caching too early. The database is not the bottleneck yet.
 
 When complete, the README should tell this story:
 
-DevInfra is a self-hosted deployment platform built with Go, PostgreSQL, Docker, and Next.js. Users can connect GitHub repositories, trigger deployments, inspect logs, stop/restart containers, and manage deployment history. The platform supports Dockerfile-based apps, Docker Compose apps, and later Kubernetes-backed deployments.
+DevInfra is a self-hosted deployment platform built with Go, PostgreSQL, Docker, and Next.js. Users can connect GitHub repositories, trigger deployments, inspect logs, stop/restart containers, and manage deployment history. The platform supports Dockerfile-based apps and Docker Compose apps.
 
 ## Personal Rule For The Rest Of The Project
 

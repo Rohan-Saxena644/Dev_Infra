@@ -30,6 +30,9 @@ func main() {
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
+	if len(os.Getenv("SECRET")) < 32 {
+		log.Fatal("SECRET must be at least 32 characters")
+	}
 
 	dbpool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
@@ -73,23 +76,28 @@ func main() {
 	defer stop()
 
 	r := chi.NewRouter()
+	globalRateLimit := middleware.RateLimit(120, time.Minute)
+	authRateLimit := middleware.RateLimit(10, time.Minute)
+	projectRateLimit := middleware.RateLimit(20, time.Minute)
+	deploymentRateLimit := middleware.RateLimit(5, time.Minute)
 
 	r.Use(middleware.Cors)
 	r.Use(middleware.Logging)
+	r.Use(globalRateLimit)
 
-	r.Post("/auth/signup", srv.SignUp)
-	r.Post("/auth/login", srv.Login)
+	r.With(authRateLimit).Post("/auth/signup", srv.SignUp)
+	r.With(authRateLimit).Post("/auth/login", srv.Login)
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth)
 
-		r.Post("/projects", srv.CreateProject)
+		r.With(projectRateLimit).Post("/projects", srv.CreateProject)
 		r.Get("/projects", srv.GetProjects)
 		r.Get("/projects/{id}", srv.GetProject)
 		r.Delete("/projects/{id}", srv.DeleteProject)
-		r.Post("/projects/{id}/deploy", srv.CreateDeployment)
+		r.With(deploymentRateLimit).Post("/projects/{id}/deploy", srv.CreateDeployment)
 		r.Get("/deployments", srv.GetDeployments)
-		r.Post("/deployments/{id}/restart", srv.RestartDeployment)
+		r.With(deploymentRateLimit).Post("/deployments/{id}/restart", srv.RestartDeployment)
 	})
 
 	for i := 0; i < 3; i++ {

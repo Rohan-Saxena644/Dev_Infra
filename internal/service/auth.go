@@ -68,7 +68,7 @@ func ParseToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 
 	if err != nil {
 		return nil, err
@@ -82,14 +82,18 @@ func ParseToken(tokenString string) (*Claims, error) {
 }
 
 func (s *ProjectService) SignUp(email, password string) (string, database.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	if !IsValidGmailID(email) {
+		return "", database.User{}, errors.New("invalid gmail id")
+	}
+	if len(password) < 8 || len(password) > 72 {
+		return "", database.User{}, errors.New("password must be between 8 and 72 characters")
+	}
 
 	passwordHash, err := HashPassword(password)
 	if err != nil {
 		return "", database.User{}, err
-	}
-
-	if !IsValidGmailID(email) {
-		return "", database.User{}, errors.New("invalid gmail id")
 	}
 
 	user, err := s.DB.CreateUser(context.Background(), database.CreateUserParams{
@@ -111,6 +115,8 @@ func (s *ProjectService) SignUp(email, password string) (string, database.User, 
 }
 
 func (s *ProjectService) Login(email, password string) (string, database.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+
 	if !IsValidGmailID(email) {
 		return "", database.User{}, errors.New("invalid gmail id")
 	}
@@ -136,6 +142,9 @@ func IsValidGmailID(id string) bool {
 	// Parse the email address to check for valid RFC 5322 format
 	parsedEmail, err := mail.ParseAddress(id)
 	if err != nil {
+		return false
+	}
+	if strings.ToLower(parsedEmail.Address) != strings.ToLower(id) {
 		return false
 	}
 

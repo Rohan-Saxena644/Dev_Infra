@@ -1,3 +1,7 @@
 tmp
 .gitignore
 .env
+.env.local
+.env.*.local
+.env*
+.gitignore

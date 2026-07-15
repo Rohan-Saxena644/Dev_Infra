@@ -1,5 +1,6 @@
 tmp
 .gitignore
+journey.txt
 .env
 .env.local
 .env.*.local

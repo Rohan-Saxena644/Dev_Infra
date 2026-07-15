@@ -3,7 +3,6 @@ package server
 import (
 	// "context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -113,8 +112,7 @@ func (s *Server) GetDeployments(
 	for _, d := range deployments {
 		running := false
 		if d.Status == "success" {
-			containerName := fmt.Sprintf("deployment-%d", d.ID)
-			running, _ = s.Worker.Docker.IsRunning(containerName)
+			running, _ = s.Worker.IsDeploymentRunning(d)
 		}
 		response = append(response, DeploymentResponse{
 			Deployment:       d,
@@ -156,9 +154,7 @@ func (s *Server) RestartDeployment(
 		return
 	}
 
-	containerName := fmt.Sprintf("deployment-%d", deployment.ID)
-
-	output, err := s.Worker.Docker.Start(containerName)
+	output, err := s.Worker.StartDeployment(deployment)
 	if err != nil {
 		log.Println("restart failed:", string(output), err)
 		http.Error(w, "failed to restart container — it may have been permanently removed, redeploy instead", http.StatusInternalServerError)
@@ -170,4 +166,84 @@ func (s *Server) RestartDeployment(
 		Deployment:       deployment,
 		ContainerRunning: true,
 	})
+}
+
+func (s *Server) StopDeployment(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid deployment id", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	deployment, err := s.ProjectService.GetDeployment(int32(id), userID)
+	if err != nil {
+		http.Error(w, "deployment not found", http.StatusNotFound)
+		return
+	}
+	if deployment.Status != "success" {
+		http.Error(w, "only successful deployments can be stopped", http.StatusBadRequest)
+		return
+	}
+
+	output, err := s.Worker.StopDeployment(deployment)
+	if err != nil {
+		log.Println("stop failed:", string(output), err)
+		http.Error(w, "failed to stop deployment", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(DeploymentResponse{
+		Deployment:       deployment,
+		ContainerRunning: false,
+	})
+}
+
+type DeploymentLogsResponse struct {
+	Logs string `json:"logs"`
+}
+
+func (s *Server) GetDeploymentLogs(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid deployment id", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	deployment, err := s.ProjectService.GetDeployment(int32(id), userID)
+	if err != nil {
+		http.Error(w, "deployment not found", http.StatusNotFound)
+		return
+	}
+
+	output, err := s.Worker.DeploymentLogs(deployment)
+	if err != nil {
+		log.Println("logs failed:", string(output), err)
+		http.Error(w, "deployment logs are not available", http.StatusNotFound)
+		return
+	}
+	if len(output) > 256<<10 {
+		output = output[len(output)-(256<<10):]
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(DeploymentLogsResponse{Logs: string(output)})
 }

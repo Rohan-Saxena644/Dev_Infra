@@ -35,7 +35,7 @@ VALUES (
     $1,
     $2
 )
-RETURNING id, project_id, status, created_at, port
+RETURNING id, project_id, status, created_at, port, deployment_type
 `
 
 type CreateDeploymentParams struct {
@@ -52,6 +52,7 @@ func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentPara
 		&i.Status,
 		&i.CreatedAt,
 		&i.Port,
+		&i.DeploymentType,
 	)
 	return i, err
 }
@@ -77,7 +78,7 @@ func (q *Queries) DeleteDeploymentsByProject(ctx context.Context, projectID int3
 }
 
 const getActiveDeploymentByProject = `-- name: GetActiveDeploymentByProject :one
-SELECT id, project_id, status, created_at, port
+SELECT id, project_id, status, created_at, port, deployment_type
 FROM deployments
 WHERE project_id = $1
 AND status IN ('queued', 'running')
@@ -94,12 +95,13 @@ func (q *Queries) GetActiveDeploymentByProject(ctx context.Context, projectID in
 		&i.Status,
 		&i.CreatedAt,
 		&i.Port,
+		&i.DeploymentType,
 	)
 	return i, err
 }
 
 const getDeployment = `-- name: GetDeployment :one
-SELECT id, project_id, status, created_at, port
+SELECT id, project_id, status, created_at, port, deployment_type
 FROM deployments
 WHERE id = $1
 `
@@ -113,12 +115,13 @@ func (q *Queries) GetDeployment(ctx context.Context, id int32) (Deployment, erro
 		&i.Status,
 		&i.CreatedAt,
 		&i.Port,
+		&i.DeploymentType,
 	)
 	return i, err
 }
 
 const getDeploymentsByProject = `-- name: GetDeploymentsByProject :many
-SELECT id, project_id, status, created_at, port
+SELECT id, project_id, status, created_at, port, deployment_type
 FROM deployments
 WHERE project_id = $1
 ORDER BY created_at DESC
@@ -139,6 +142,7 @@ func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) 
 			&i.Status,
 			&i.CreatedAt,
 			&i.Port,
+			&i.DeploymentType,
 		); err != nil {
 			return nil, err
 		}
@@ -151,7 +155,7 @@ func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) 
 }
 
 const getDeploymentsByUser = `-- name: GetDeploymentsByUser :many
-SELECT deployments.id, deployments.project_id, deployments.status, deployments.created_at, deployments.port
+SELECT deployments.id, deployments.project_id, deployments.status, deployments.created_at, deployments.port, deployments.deployment_type
 FROM deployments
 JOIN projects ON projects.id = deployments.project_id
 WHERE projects.user_id = $1
@@ -173,6 +177,7 @@ func (q *Queries) GetDeploymentsByUser(ctx context.Context, userID pgtype.Int4) 
 			&i.Status,
 			&i.CreatedAt,
 			&i.Port,
+			&i.DeploymentType,
 		); err != nil {
 			return nil, err
 		}
@@ -204,7 +209,7 @@ const updateDeploymentStatus = `-- name: UpdateDeploymentStatus :one
 UPDATE deployments
 SET status = $2
 WHERE id = $1
-RETURNING id, project_id, status, created_at, port
+RETURNING id, project_id, status, created_at, port, deployment_type
 `
 
 type UpdateDeploymentStatusParams struct {
@@ -221,6 +226,23 @@ func (q *Queries) UpdateDeploymentStatus(ctx context.Context, arg UpdateDeployme
 		&i.Status,
 		&i.CreatedAt,
 		&i.Port,
+		&i.DeploymentType,
 	)
 	return i, err
+}
+
+const updateDeploymentType = `-- name: UpdateDeploymentType :exec
+UPDATE deployments
+SET deployment_type = $2
+WHERE id = $1
+`
+
+type UpdateDeploymentTypeParams struct {
+	ID             int32
+	DeploymentType string
+}
+
+func (q *Queries) UpdateDeploymentType(ctx context.Context, arg UpdateDeploymentTypeParams) error {
+	_, err := q.db.Exec(ctx, updateDeploymentType, arg.ID, arg.DeploymentType)
+	return err
 }

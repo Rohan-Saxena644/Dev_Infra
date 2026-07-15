@@ -51,13 +51,8 @@ func (w *DeploymentWorker) enforceFifoLimit(projectID int32, limit int) {
 	}
 
 	for _, d := range deployments[limit:] {
-		containerName := fmt.Sprintf("deployment-%d", d.ID)
-
-		if out, err := w.Docker.Remove(containerName); err != nil {
-			log.Println("fifo: failed to remove container", containerName, string(out), err)
-		}
-		if out, err := w.Docker.RemoveImage(containerName); err != nil {
-			log.Println("fifo: failed to remove image", containerName, string(out), err)
+		if out, err := w.RemoveDeployment(d); err != nil {
+			log.Println("fifo: failed to remove deployment", d.ID, string(out), err)
 		}
 		if err := w.DB.DeleteDeployment(context.Background(), d.ID); err != nil {
 			log.Println("fifo: failed to delete deployment row", d.ID, err)
@@ -136,12 +131,32 @@ func (w *DeploymentWorker)ProcessDeployment(
 
 	log.Printf("processing deployment %d",deploymentID)
 
-	err = w.Docker.Deploy(
-		imageName,
-		containerName,
-		path,
-		port,
-	)
+	composeFile, isCompose := docker.FindComposeFile(path)
+	if isCompose {
+		err = w.DB.UpdateDeploymentType(
+			context.Background(),
+			database.UpdateDeploymentTypeParams{
+				ID:             deploymentID,
+				DeploymentType: "compose",
+			},
+		)
+		if err == nil {
+			err = w.Docker.DeployCompose(
+				composeFile,
+				path,
+				docker.ComposeProjectName(deploymentID),
+				docker.ComposeConfigPath(deploymentID),
+				port,
+			)
+		}
+	} else {
+		err = w.Docker.Deploy(
+			imageName,
+			containerName,
+			path,
+			port,
+		)
+	}
 
 	if err != nil {
 		// update deployment to failed

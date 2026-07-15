@@ -4,16 +4,19 @@ import (
 	"context"
 
 	"errors"
+	"log/slog"
 	"net/url"
 	"strings"
 
+	"github.com/Rohan-Saxena644/devinfra/internal/cache"
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ProjectService struct {
-	DB *database.Queries
+	DB    *database.Queries
+	Cache *cache.Client
 }
 
 func isValidGitHubRepoURL(repoURL string) bool {
@@ -47,7 +50,7 @@ func (s *ProjectService) CreateProject(
 		return database.Project{}, errors.New("invalid repository url")
 	}
 
-	return s.DB.CreateProject(context.Background(), database.CreateProjectParams{
+	project, err := s.DB.CreateProject(context.Background(), database.CreateProjectParams{
 		Name:    name,
 		RepoUrl: repoURL,
 		UserID: pgtype.Int4{
@@ -55,13 +58,34 @@ func (s *ProjectService) CreateProject(
 			Valid: true,
 		},
 	})
+	if err == nil && s.Cache != nil {
+		_ = s.Cache.DeleteProjects(context.Background(), userID)
+	}
+	return project, err
 }
 
 func (s *ProjectService) GetProjects(userID int32) ([]database.Project, error) {
-	return s.DB.GetProjectsByUser(context.Background(), pgtype.Int4{
+	ctx := context.Background()
+	if s.Cache != nil {
+		projects, found, err := s.Cache.GetProjects(ctx, userID)
+		if err == nil && found {
+			return projects, nil
+		}
+		if err != nil {
+			slog.Warn("project cache read failed", "error", err)
+		}
+	}
+
+	projects, err := s.DB.GetProjectsByUser(ctx, pgtype.Int4{
 		Int32: userID,
 		Valid: true,
 	})
+	if err == nil && s.Cache != nil {
+		if cacheErr := s.Cache.SetProjects(ctx, userID, projects); cacheErr != nil {
+			slog.Warn("project cache write failed", "error", cacheErr)
+		}
+	}
+	return projects, err
 }
 
 func (s *ProjectService) GetProject(id int32, userID int32) (database.Project, error) {
@@ -156,11 +180,15 @@ func (s *ProjectService) DeleteProject(projectID int32, userID int32) error {
 		return err
 	}
 
-	return s.DB.DeleteProjectByUser(context.Background(), database.DeleteProjectByUserParams{
+	err = s.DB.DeleteProjectByUser(context.Background(), database.DeleteProjectByUserParams{
 		ID: projectID,
 		UserID: pgtype.Int4{
 			Int32: userID,
 			Valid: true,
 		},
 	})
+	if err == nil && s.Cache != nil {
+		_ = s.Cache.DeleteProjects(context.Background(), userID)
+	}
+	return err
 }

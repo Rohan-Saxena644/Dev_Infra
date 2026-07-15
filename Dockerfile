@@ -19,7 +19,7 @@ FROM alpine:3.20
 
 # Your worker calls exec.Command("git") and exec.Command("docker")
 # Both must exist in the container
-RUN apk add --no-cache git docker-cli
+RUN apk add --no-cache git docker-cli docker-cli-compose
 
 WORKDIR /app
 

@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/Rohan-Saxena644/devinfra/internal/cache"
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/Rohan-Saxena644/devinfra/internal/docker"
 	"github.com/Rohan-Saxena644/devinfra/internal/git"
@@ -45,13 +46,28 @@ func main() {
 	}
 
 	queries := database.New(dbpool)
+	var projectCache *cache.Client
+	if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
+		projectCache = cache.New(redisAddr)
+		cacheCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		if err := projectCache.Ping(cacheCtx); err != nil {
+			log.Println("redis unavailable, continuing without cache:", err)
+			_ = projectCache.Close()
+			projectCache = nil
+		}
+		cancel()
+	}
+	if projectCache != nil {
+		defer projectCache.Close()
+	}
 
 	// srv := &server.Server{
 	// 	DB: queries,
 	// }
 
 	projectService := &service.ProjectService{
-		DB: queries,
+		DB:    queries,
+		Cache: projectCache,
 	}
 
 	dockerClient := &docker.Client{}
@@ -97,6 +113,8 @@ func main() {
 		r.Delete("/projects/{id}", srv.DeleteProject)
 		r.With(deploymentRateLimit).Post("/projects/{id}/deploy", srv.CreateDeployment)
 		r.Get("/deployments", srv.GetDeployments)
+		r.With(projectRateLimit).Get("/deployments/{id}/logs", srv.GetDeploymentLogs)
+		r.With(deploymentRateLimit).Post("/deployments/{id}/stop", srv.StopDeployment)
 		r.With(deploymentRateLimit).Post("/deployments/{id}/restart", srv.RestartDeployment)
 	})
 

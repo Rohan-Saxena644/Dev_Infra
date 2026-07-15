@@ -83,6 +83,20 @@ func (c *Client) Stop(containerName string) ([]byte, error) {
 	).CombinedOutput()
 }
 
+func (c *Client) Logs(containerName string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	return exec.CommandContext(
+		ctx,
+		"docker",
+		"logs",
+		"--tail",
+		"200",
+		containerName,
+	).CombinedOutput()
+}
+
 
 func (c *Client) Start(containerName string) ([]byte, error) {
 	return exec.Command(

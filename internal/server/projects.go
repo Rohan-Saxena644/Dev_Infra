@@ -3,7 +3,6 @@ package server
 import (
 	// "context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -149,13 +148,8 @@ func (s *Server) DeleteProject(
 	}
 
 	for _, d := range deployments {
-		containerName := fmt.Sprintf("deployment-%d", d.ID)
-
-		if out, err := s.Worker.Docker.Remove(containerName); err != nil {
-			log.Println("delete project: failed to remove container", containerName, string(out), err)
-		}
-		if out, err := s.Worker.Docker.RemoveImage(containerName); err != nil {
-			log.Println("delete project: failed to remove image", containerName, string(out), err)
+		if out, err := s.Worker.RemoveDeployment(d); err != nil {
+			log.Println("delete project: failed to remove deployment", d.ID, string(out), err)
 		}
 	}
 

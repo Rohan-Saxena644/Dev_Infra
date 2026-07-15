@@ -35,6 +35,11 @@ UPDATE deployments
 SET port = $2
 WHERE id = $1;
 
+-- name: UpdateDeploymentType :exec
+UPDATE deployments
+SET deployment_type = $2
+WHERE id = $1;
+
 -- name: GetDeploymentsByProject :many
 SELECT *
 FROM deployments

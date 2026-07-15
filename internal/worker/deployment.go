@@ -20,6 +20,7 @@ type DeploymentWorker struct{
 	Queue chan int32
 	Docker *docker.Client
 	Git *git.Client
+	EnvKey []byte
 }
 
 
@@ -87,6 +88,16 @@ func (w *DeploymentWorker)ProcessDeployment(
 		return
 	}
 
+	envFile, environment, err := w.environmentFile(project.ID, deploymentID)
+	if err != nil {
+		log.Println("failed to prepare deployment environment:", err)
+		w.markFailed(deploymentID)
+		return
+	}
+	if envFile != "" {
+		defer os.Remove(envFile)
+	}
+
 	path := fmt.Sprintf("./tmp/deployment-%d",deploymentID)
 
 	defer os.RemoveAll(path)
@@ -147,6 +158,7 @@ func (w *DeploymentWorker)ProcessDeployment(
 				docker.ComposeProjectName(deploymentID),
 				docker.ComposeConfigPath(deploymentID),
 				port,
+				environment,
 			)
 		}
 	} else {
@@ -155,6 +167,7 @@ func (w *DeploymentWorker)ProcessDeployment(
 			containerName,
 			path,
 			port,
+			envFile,
 		)
 	}
 

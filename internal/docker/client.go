@@ -1,10 +1,14 @@
 package docker
 
 import (
-	"os/exec"
-	"fmt"
-	"strings"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os/exec"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -34,13 +38,12 @@ func (c *Client) Build(tag string, path string)([]byte,error){
 }
 
 
-func (c *Client) Run(containerName string, image string , port int)([]byte,error){
+func (c *Client) Run(containerName string, image string , port int, containerPort int, envFile string)([]byte,error){
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	return exec.CommandContext(ctx,
-		"docker",
+	args := []string{
 		"run",
 		"-d",
 		"--restart",
@@ -51,27 +54,85 @@ func (c *Client) Run(containerName string, image string , port int)([]byte,error
 		"0.50",
 		"--pids-limit",
 		"100",
+	}
+	if envFile != "" {
+		args = append(args, "--env-file", envFile)
+	}
+	args = append(args,
 		"--name",
 		containerName,
 		"-p",
-		fmt.Sprintf("%d:80", port),
+		fmt.Sprintf("%d:%d", port, containerPort),
 		image,
-	).CombinedOutput()
+	)
+
+	return exec.CommandContext(ctx, "docker", args...).CombinedOutput()
 }
 
 
-func (c *Client) Deploy(imageName string,containerName string,path string, port int)error{
+func (c *Client) Deploy(imageName string,containerName string,path string, port int, envFile string)error{
 	_,err:= c.Build(imageName,path)
 	if err != nil{
 		return err
 	}
 
-	_,err = c.Run(containerName,imageName, port)
+	containerPort, err := c.ExposedPort(imageName)
+	if err != nil {
+		return err
+	}
+
+	_,err = c.Run(containerName,imageName, port, containerPort, envFile)
 	if err != nil{
 		return err
 	}
 	
 	return nil
+}
+
+func (c *Client) ExposedPort(image string) (int, error) {
+	output, err := exec.Command(
+		"docker",
+		"image",
+		"inspect",
+		"--format",
+		"{{json .Config.ExposedPorts}}",
+		image,
+	).CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("inspect image ports: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+
+	var ports map[string]json.RawMessage
+	if err := json.Unmarshal(output, &ports); err != nil {
+		return 0, err
+	}
+	return selectExposedPort(ports)
+}
+
+func selectExposedPort(ports map[string]json.RawMessage) (int, error) {
+	if _, ok := ports["80/tcp"]; ok {
+		return 80, nil
+	}
+
+	var candidates []int
+	for value := range ports {
+		parts := strings.SplitN(value, "/", 2)
+		if len(parts) != 2 || parts[1] != "tcp" {
+			continue
+		}
+		port, err := strconv.Atoi(parts[0])
+		if err == nil && port > 0 && port <= 65535 {
+			candidates = append(candidates, port)
+		}
+	}
+	if len(candidates) == 0 {
+		return 80, nil
+	}
+	sort.Ints(candidates)
+	if len(candidates) > 1 {
+		return 0, errors.New("image exposes multiple TCP ports and none is port 80")
+	}
+	return candidates[0], nil
 }
 
 

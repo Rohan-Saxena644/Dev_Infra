@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -87,6 +88,16 @@ func TestNormalizedConfigIsAcceptedByDockerCompose(t *testing.T) {
 	}
 }
 
+func TestComposeCommandEnvironmentDoesNotInheritServerSecrets(t *testing.T) {
+	t.Setenv("SECRET", "server-secret")
+	t.Setenv("DATABASE_URL", "server-database")
+	for _, value := range composeCommandEnvironment() {
+		if strings.HasPrefix(value, "SECRET=") || strings.HasPrefix(value, "DATABASE_URL=") {
+			t.Fatalf("server environment leaked to compose: %s", value)
+		}
+	}
+}
+
 func TestComposeCLIOutputCanBePersisted(t *testing.T) {
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("docker CLI is not installed")
@@ -106,6 +117,8 @@ func TestComposeCLIOutputCanBePersisted(t *testing.T) {
       - "3000:80"
   backend:
     image: node:alpine
+    environment:
+      TEST_SECRET: ${TEST_SECRET:?required}
     ports:
       - "5000:5000"
   database:
@@ -120,9 +133,19 @@ volumes:
 	}
 
 	client := &Client{}
-	raw, err := client.readComposeConfig(composeFile, repoPath)
+	secretValue := `value-$-"quoted"`
+	raw, err := client.readComposeConfig(composeFile, repoPath, map[string]string{"TEST_SECRET": secretValue})
 	if err != nil {
 		t.Fatal(err)
+	}
+	var rendered map[string]any
+	if err := json.Unmarshal(raw, &rendered); err != nil {
+		t.Fatal(err)
+	}
+	backend := rendered["services"].(map[string]any)["backend"].(map[string]any)
+	canonicalValue := strings.ReplaceAll(secretValue, "$", "$$")
+	if got := backend["environment"].(map[string]any)["TEST_SECRET"]; got != canonicalValue {
+		t.Fatalf("unexpected canonical environment value: got %q, want %q", got, canonicalValue)
 	}
 	normalized, err := normalizeComposeConfig(raw, repoPath, "deployment-2", 9002)
 	if err != nil {

@@ -47,8 +47,9 @@ func (c *Client) DeployCompose(
 	projectName string,
 	configPath string,
 	hostPort int,
+	environment map[string]string,
 ) error {
-	rawConfig, err := c.readComposeConfig(composeFile, repoPath)
+	rawConfig, err := c.readComposeConfig(composeFile, repoPath, environment)
 	if err != nil {
 		return err
 	}
@@ -124,7 +125,7 @@ func (c *Client) runCompose(
 	return output, nil
 }
 
-func (c *Client) readComposeConfig(composeFile string, repoPath string) ([]byte, error) {
+func (c *Client) readComposeConfig(composeFile string, repoPath string, environment map[string]string) ([]byte, error) {
 	absFile, err := filepath.Abs(composeFile)
 	if err != nil {
 		return nil, err
@@ -133,9 +134,7 @@ func (c *Client) readComposeConfig(composeFile string, repoPath string) ([]byte,
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(
-		ctx,
-		"docker",
+	args := []string{
 		"compose",
 		"-f",
 		absFile,
@@ -144,8 +143,13 @@ func (c *Client) readComposeConfig(composeFile string, repoPath string) ([]byte,
 		"config",
 		"--format",
 		"json",
-	)
+	}
+	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = repoPath
+	cmd.Env = composeCommandEnvironment()
+	for name, value := range environment {
+		cmd.Env = append(cmd.Env, name+"="+value)
+	}
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -154,6 +158,22 @@ func (c *Client) readComposeConfig(composeFile string, repoPath string) ([]byte,
 		return nil, commandError("docker compose config", stderr.Bytes(), err)
 	}
 	return output, nil
+}
+
+func composeCommandEnvironment() []string {
+	allowed := []string{
+		"PATH", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA",
+		"SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "COMSPEC", "PATHEXT", "WINDIR",
+		"ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "ProgramData",
+		"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
+	}
+	environment := make([]string, 0, len(allowed))
+	for _, name := range allowed {
+		if value, ok := os.LookupEnv(name); ok {
+			environment = append(environment, name+"="+value)
+		}
+	}
+	return environment
 }
 
 func normalizeComposeConfig(

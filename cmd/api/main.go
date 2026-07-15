@@ -15,6 +15,7 @@ import (
 	"github.com/Rohan-Saxena644/devinfra/internal/docker"
 	"github.com/Rohan-Saxena644/devinfra/internal/git"
 	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
+	"github.com/Rohan-Saxena644/devinfra/internal/secrets"
 	"github.com/Rohan-Saxena644/devinfra/internal/server"
 	"github.com/Rohan-Saxena644/devinfra/internal/service"
 	"github.com/Rohan-Saxena644/devinfra/internal/worker"
@@ -33,6 +34,10 @@ func main() {
 	}
 	if len(os.Getenv("SECRET")) < 32 {
 		log.Fatal("SECRET must be at least 32 characters")
+	}
+	envKey, err := secrets.ParseEncryptionKey(os.Getenv("ENV_ENCRYPTION_KEY"))
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	dbpool, err := pgxpool.New(context.Background(), databaseURL)
@@ -66,8 +71,9 @@ func main() {
 	// }
 
 	projectService := &service.ProjectService{
-		DB:    queries,
-		Cache: projectCache,
+		DB:     queries,
+		Cache:  projectCache,
+		EnvKey: envKey,
 	}
 
 	dockerClient := &docker.Client{}
@@ -78,6 +84,7 @@ func main() {
 		Queue:  make(chan int32, 100),
 		Docker: dockerClient,
 		Git:    git,
+		EnvKey: envKey,
 	}
 
 	srv := &server.Server{
@@ -110,6 +117,9 @@ func main() {
 		r.With(projectRateLimit).Post("/projects", srv.CreateProject)
 		r.Get("/projects", srv.GetProjects)
 		r.Get("/projects/{id}", srv.GetProject)
+		r.With(projectRateLimit).Get("/projects/{id}/environment", srv.GetProjectEnvironment)
+		r.With(projectRateLimit).Put("/projects/{id}/environment/{name}", srv.SetProjectEnvironmentVariable)
+		r.With(projectRateLimit).Delete("/projects/{id}/environment/{name}", srv.DeleteProjectEnvironmentVariable)
 		r.Delete("/projects/{id}", srv.DeleteProject)
 		r.With(deploymentRateLimit).Post("/projects/{id}/deploy", srv.CreateDeployment)
 		r.Get("/deployments", srv.GetDeployments)

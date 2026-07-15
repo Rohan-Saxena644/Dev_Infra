@@ -25,6 +25,13 @@ type Project struct {
 	UserID    pgtype.Int4
 }
 
+type ProjectEnvVar struct {
+	ProjectID      int32
+	Name           string
+	EncryptedValue []byte
+	UpdatedAt      pgtype.Timestamp
+}
+
 type User struct {
 	ID           int32
 	Email        string

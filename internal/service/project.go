@@ -17,6 +17,7 @@ import (
 type ProjectService struct {
 	DB    *database.Queries
 	Cache *cache.Client
+	EnvKey []byte
 }
 
 func isValidGitHubRepoURL(repoURL string) bool {

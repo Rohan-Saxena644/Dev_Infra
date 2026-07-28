@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/Rohan-Saxena644/devinfra/internal/docker"
@@ -57,6 +58,9 @@ func (w *DeploymentWorker) DeploymentLogs(deployment database.Deployment) ([]byt
 func (w *DeploymentWorker) RemoveDeployment(deployment database.Deployment) ([]byte, error) {
 	if deployment.DeploymentType == "compose" {
 		configPath := docker.ComposeConfigPath(deployment.ID)
+		if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		output, err := w.Docker.ComposeRemove(configPath, docker.ComposeProjectName(deployment.ID))
 		if err == nil {
 			_ = os.Remove(configPath)
@@ -67,5 +71,11 @@ func (w *DeploymentWorker) RemoveDeployment(deployment database.Deployment) ([]b
 	name := deploymentName(deployment.ID)
 	containerOutput, containerErr := w.Docker.Remove(name)
 	imageOutput, imageErr := w.Docker.RemoveImage(name)
+	if strings.Contains(string(containerOutput), "No such container") {
+		containerErr = nil
+	}
+	if strings.Contains(string(imageOutput), "No such image") {
+		imageErr = nil
+	}
 	return bytes.Join([][]byte{containerOutput, imageOutput}, []byte("\n")), errors.Join(containerErr, imageErr)
 }

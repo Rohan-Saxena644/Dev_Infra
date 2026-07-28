@@ -38,6 +38,61 @@ func (w *DeploymentWorker) markFailed(deploymentID int32) {
 	}
 }
 
+func (w *DeploymentWorker) cleanupDeployments() {
+	deployments, err := w.DB.GetDeploymentsForCleanup(context.Background())
+	if err != nil {
+		log.Println("cleanup: failed to list deployments:", err)
+		return
+	}
+
+	for _, deployment := range deployments {
+		status := "expired"
+		if deployment.Status == "queued" {
+			status = "failed"
+			if _, err := w.DB.UpdateDeploymentStatusIfCurrent(
+				context.Background(),
+				database.UpdateDeploymentStatusIfCurrentParams{
+					ID:            deployment.ID,
+					NewStatus:     status,
+					CurrentStatus: deployment.Status,
+				},
+			); err != nil {
+				log.Println("cleanup: failed to expire queued deployment", deployment.ID, err)
+			}
+			continue
+		}
+
+		if out, err := w.RemoveDeployment(deployment); err != nil {
+			log.Println("cleanup: failed to remove deployment", deployment.ID, string(out), err)
+			continue
+		}
+
+		if deployment.Status == "running" {
+			status = "failed"
+		}
+		if _, err := w.DB.UpdateDeploymentStatusIfCurrent(
+			context.Background(),
+			database.UpdateDeploymentStatusIfCurrentParams{
+				ID:            deployment.ID,
+				NewStatus:     status,
+				CurrentStatus: deployment.Status,
+			},
+		); err != nil {
+			log.Println("cleanup: failed to update deployment", deployment.ID, err)
+		}
+	}
+}
+
+func (w *DeploymentWorker) StartCleanup() {
+	w.cleanupDeployments()
+
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		w.cleanupDeployments()
+	}
+}
+
 
 
 func (w *DeploymentWorker) enforceFifoLimit(projectID int32, limit int) {
@@ -66,18 +121,9 @@ func (w *DeploymentWorker) enforceFifoLimit(projectID int32, limit int) {
 func (w *DeploymentWorker)ProcessDeployment(
 	deploymentID int32,
 ){
-	w.DB.UpdateDeploymentStatus(context.Background(),
-		database.UpdateDeploymentStatusParams{
-			ID: deploymentID,
-			Status: "running",
-		},
-	)
-
-
-	deployment, err := w.DB.GetDeployment(context.Background(),deploymentID)
+	deployment, err := w.DB.ClaimDeployment(context.Background(), deploymentID)
 	if err != nil{
 		log.Println(err)
-		w.markFailed(deploymentID)
 		return 
 	}
 
@@ -142,6 +188,12 @@ func (w *DeploymentWorker)ProcessDeployment(
 
 	log.Printf("processing deployment %d",deploymentID)
 
+	defer func() {
+		if output, err := w.Docker.PruneBuildCache(); err != nil {
+			log.Println("build cache cleanup failed:", string(output), err)
+		}
+	}()
+
 	composeFile, isCompose := docker.FindComposeFile(path)
 	if isCompose {
 		err = w.DB.UpdateDeploymentType(
@@ -174,6 +226,11 @@ func (w *DeploymentWorker)ProcessDeployment(
 	if err != nil {
 		// update deployment to failed
 		log.Println(err)
+		if !isCompose {
+			if output, cleanupErr := w.RemoveDeployment(deployment); cleanupErr != nil {
+				log.Println("failed deployment cleanup:", string(output), cleanupErr)
+			}
+		}
 		w.markFailed(deploymentID)
 		return
 	}

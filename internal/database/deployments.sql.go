@@ -11,6 +11,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimDeployment = `-- name: ClaimDeployment :one
+UPDATE deployments
+SET status = 'running'
+WHERE id = $1
+AND status = 'queued'
+RETURNING id, project_id, status, created_at, port, deployment_type
+`
+
+func (q *Queries) ClaimDeployment(ctx context.Context, id int32) (Deployment, error) {
+	row := q.db.QueryRow(ctx, claimDeployment, id)
+	var i Deployment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.Port,
+		&i.DeploymentType,
+	)
+	return i, err
+}
+
 const createDeployment = `-- name: CreateDeployment :one
 INSERT INTO deployments (
     project_id,
@@ -172,6 +194,41 @@ func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) 
 	return items, nil
 }
 
+const getDeploymentsForCleanup = `-- name: GetDeploymentsForCleanup :many
+SELECT id, project_id, status, created_at, port, deployment_type
+FROM deployments
+WHERE (status = 'success' AND created_at < NOW() - INTERVAL '1 hour')
+OR (status IN ('queued', 'running') AND created_at < NOW() - INTERVAL '30 minutes')
+ORDER BY created_at
+`
+
+func (q *Queries) GetDeploymentsForCleanup(ctx context.Context) ([]Deployment, error) {
+	rows, err := q.db.Query(ctx, getDeploymentsForCleanup)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Deployment
+	for rows.Next() {
+		var i Deployment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.Port,
+			&i.DeploymentType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateDeploymentPort = `-- name: UpdateDeploymentPort :exec
 UPDATE deployments
 SET port = $2
@@ -202,6 +259,34 @@ type UpdateDeploymentStatusParams struct {
 
 func (q *Queries) UpdateDeploymentStatus(ctx context.Context, arg UpdateDeploymentStatusParams) (Deployment, error) {
 	row := q.db.QueryRow(ctx, updateDeploymentStatus, arg.ID, arg.Status)
+	var i Deployment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.Port,
+		&i.DeploymentType,
+	)
+	return i, err
+}
+
+const updateDeploymentStatusIfCurrent = `-- name: UpdateDeploymentStatusIfCurrent :one
+UPDATE deployments
+SET status = $1
+WHERE id = $2
+AND status = $3
+RETURNING id, project_id, status, created_at, port, deployment_type
+`
+
+type UpdateDeploymentStatusIfCurrentParams struct {
+	NewStatus     string
+	ID            int32
+	CurrentStatus string
+}
+
+func (q *Queries) UpdateDeploymentStatusIfCurrent(ctx context.Context, arg UpdateDeploymentStatusIfCurrentParams) (Deployment, error) {
+	row := q.db.QueryRow(ctx, updateDeploymentStatusIfCurrent, arg.NewStatus, arg.ID, arg.CurrentStatus)
 	var i Deployment
 	err := row.Scan(
 		&i.ID,

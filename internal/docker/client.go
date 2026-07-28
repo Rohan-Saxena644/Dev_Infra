@@ -56,6 +56,22 @@ func (c *Client) EnsureBuilder() error {
 	return nil
 }
 
+func (c *Client) PruneBuildCache() ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	return exec.CommandContext(
+		ctx,
+		"docker",
+		"buildx",
+		"prune",
+		"--builder",
+		builderName,
+		"--force",
+		"--max-used-space",
+		"2gb",
+	).CombinedOutput()
+}
 
 func (c *Client) Build(tag string, path string)([]byte,error){
 

@@ -17,6 +17,10 @@ type Deployment struct {
 	DeploymentType string
 }
 
+type DeploymentUsage struct {
+	CreatedAt pgtype.Timestamptz
+}
+
 type Project struct {
 	ID        int32
 	Name      string

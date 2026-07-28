@@ -99,7 +99,9 @@ func (s *ProjectService) CreateDeployment(projectID int32) (database.Deployment,
 		Status:    "queued",
 	})
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.ConstraintName == "deployments_global_limit" {
+	if errors.As(err, &pgErr) &&
+		(pgErr.ConstraintName == "deployments_global_limit" ||
+			pgErr.ConstraintName == "deployments_daily_limit") {
 		return database.Deployment{}, errors.New("deployment limit reached")
 	}
 	return deployment, err

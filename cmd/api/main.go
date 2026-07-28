@@ -123,6 +123,7 @@ func main() {
 	for i := 0; i < 1; i++ {
 		go worker.Start()
 	}
+	go worker.StartCleanup()
 
 	httpserver := &http.Server{
 		Addr:              ":8080",

@@ -11,21 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countActiveDeploymentsByUser = `-- name: CountActiveDeploymentsByUser :one
-SELECT COUNT(*)
-FROM deployments
-JOIN projects ON projects.id = deployments.project_id
-WHERE projects.user_id = $1
-AND deployments.status IN ('queued', 'running', 'success')
-`
-
-func (q *Queries) CountActiveDeploymentsByUser(ctx context.Context, userID pgtype.Int4) (int64, error) {
-	row := q.db.QueryRow(ctx, countActiveDeploymentsByUser, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createDeployment = `-- name: CreateDeployment :one
 INSERT INTO deployments (
     project_id,
@@ -120,15 +105,14 @@ func (q *Queries) GetDeployment(ctx context.Context, id int32) (Deployment, erro
 	return i, err
 }
 
-const getDeploymentsByProject = `-- name: GetDeploymentsByProject :many
+const getDeployments = `-- name: GetDeployments :many
 SELECT id, project_id, status, created_at, port, deployment_type
 FROM deployments
-WHERE project_id = $1
-ORDER BY created_at DESC
+ORDER BY deployments.created_at DESC
 `
 
-func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) ([]Deployment, error) {
-	rows, err := q.db.Query(ctx, getDeploymentsByProject, projectID)
+func (q *Queries) GetDeployments(ctx context.Context) ([]Deployment, error) {
+	rows, err := q.db.Query(ctx, getDeployments)
 	if err != nil {
 		return nil, err
 	}
@@ -154,16 +138,15 @@ func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) 
 	return items, nil
 }
 
-const getDeploymentsByUser = `-- name: GetDeploymentsByUser :many
-SELECT deployments.id, deployments.project_id, deployments.status, deployments.created_at, deployments.port, deployments.deployment_type
+const getDeploymentsByProject = `-- name: GetDeploymentsByProject :many
+SELECT id, project_id, status, created_at, port, deployment_type
 FROM deployments
-JOIN projects ON projects.id = deployments.project_id
-WHERE projects.user_id = $1
-ORDER BY deployments.created_at DESC
+WHERE project_id = $1
+ORDER BY created_at DESC
 `
 
-func (q *Queries) GetDeploymentsByUser(ctx context.Context, userID pgtype.Int4) ([]Deployment, error) {
-	rows, err := q.db.Query(ctx, getDeploymentsByUser, userID)
+func (q *Queries) GetDeploymentsByProject(ctx context.Context, projectID int32) ([]Deployment, error) {
+	rows, err := q.db.Query(ctx, getDeploymentsByProject, projectID)
 	if err != nil {
 		return nil, err
 	}

@@ -9,11 +9,9 @@ VALUES (
 )
 RETURNING *;
 
--- name: GetDeploymentsByUser :many
-SELECT deployments.*
+-- name: GetDeployments :many
+SELECT *
 FROM deployments
-JOIN projects ON projects.id = deployments.project_id
-WHERE projects.user_id = $1
 ORDER BY deployments.created_at DESC;
 
 
@@ -63,13 +61,3 @@ WHERE project_id = $1
 AND status IN ('queued', 'running')
 ORDER BY created_at DESC
 LIMIT 1;
-
-
-
-
--- name: CountActiveDeploymentsByUser :one
-SELECT COUNT(*)
-FROM deployments
-JOIN projects ON projects.id = deployments.project_id
-WHERE projects.user_id = $1
-AND deployments.status IN ('queued', 'running', 'success');

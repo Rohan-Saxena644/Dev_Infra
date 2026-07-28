@@ -32,9 +32,6 @@ func main() {
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
-	if len(os.Getenv("SECRET")) < 32 {
-		log.Fatal("SECRET must be at least 32 characters")
-	}
 	envKey, err := secrets.ParseEncryptionKey(os.Getenv("ENV_ENCRYPTION_KEY"))
 	if err != nil {
 		log.Fatal(err)
@@ -77,6 +74,9 @@ func main() {
 	}
 
 	dockerClient := &docker.Client{}
+	if err := dockerClient.EnsureBuilder(); err != nil {
+		log.Fatal(err)
+	}
 	git := &git.Client{}
 
 	worker := &worker.DeploymentWorker{
@@ -100,7 +100,6 @@ func main() {
 
 	r := chi.NewRouter()
 	globalRateLimit := middleware.RateLimit(120, time.Minute)
-	authRateLimit := middleware.RateLimit(10, time.Minute)
 	projectRateLimit := middleware.RateLimit(20, time.Minute)
 	deploymentRateLimit := middleware.RateLimit(5, time.Minute)
 
@@ -108,27 +107,20 @@ func main() {
 	r.Use(middleware.Logging)
 	r.Use(globalRateLimit)
 
-	r.With(authRateLimit).Post("/auth/signup", srv.SignUp)
-	r.With(authRateLimit).Post("/auth/login", srv.Login)
+	r.With(projectRateLimit).Post("/projects", srv.CreateProject)
+	r.Get("/projects", srv.GetProjects)
+	r.Get("/projects/{id}", srv.GetProject)
+	r.With(projectRateLimit).Get("/projects/{id}/environment", srv.GetProjectEnvironment)
+	r.With(projectRateLimit).Put("/projects/{id}/environment/{name}", srv.SetProjectEnvironmentVariable)
+	r.With(projectRateLimit).Delete("/projects/{id}/environment/{name}", srv.DeleteProjectEnvironmentVariable)
+	r.Delete("/projects/{id}", srv.DeleteProject)
+	r.With(deploymentRateLimit).Post("/projects/{id}/deploy", srv.CreateDeployment)
+	r.Get("/deployments", srv.GetDeployments)
+	r.With(projectRateLimit).Get("/deployments/{id}/logs", srv.GetDeploymentLogs)
+	r.With(deploymentRateLimit).Post("/deployments/{id}/stop", srv.StopDeployment)
+	r.With(deploymentRateLimit).Post("/deployments/{id}/restart", srv.RestartDeployment)
 
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth)
-
-		r.With(projectRateLimit).Post("/projects", srv.CreateProject)
-		r.Get("/projects", srv.GetProjects)
-		r.Get("/projects/{id}", srv.GetProject)
-		r.With(projectRateLimit).Get("/projects/{id}/environment", srv.GetProjectEnvironment)
-		r.With(projectRateLimit).Put("/projects/{id}/environment/{name}", srv.SetProjectEnvironmentVariable)
-		r.With(projectRateLimit).Delete("/projects/{id}/environment/{name}", srv.DeleteProjectEnvironmentVariable)
-		r.Delete("/projects/{id}", srv.DeleteProject)
-		r.With(deploymentRateLimit).Post("/projects/{id}/deploy", srv.CreateDeployment)
-		r.Get("/deployments", srv.GetDeployments)
-		r.With(projectRateLimit).Get("/deployments/{id}/logs", srv.GetDeploymentLogs)
-		r.With(deploymentRateLimit).Post("/deployments/{id}/stop", srv.StopDeployment)
-		r.With(deploymentRateLimit).Post("/deployments/{id}/restart", srv.RestartDeployment)
-	})
-
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 1; i++ {
 		go worker.Start()
 	}
 

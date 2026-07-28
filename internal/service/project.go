@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-
 	"errors"
 	"log/slog"
 	"net/url"
@@ -11,12 +10,12 @@ import (
 	"github.com/Rohan-Saxena644/devinfra/internal/cache"
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type ProjectService struct {
-	DB    *database.Queries
-	Cache *cache.Client
+	DB     *database.Queries
+	Cache  *cache.Client
 	EnvKey []byte
 }
 
@@ -42,11 +41,7 @@ func isValidGitHubRepoURL(repoURL string) bool {
 		parts[1] != "" && parts[1] != "." && parts[1] != ".."
 }
 
-func (s *ProjectService) CreateProject(
-	name string,
-	repoURL string,
-	userID int32,
-) (database.Project, error) {
+func (s *ProjectService) CreateProject(name string, repoURL string) (database.Project, error) {
 	if !isValidGitHubRepoURL(repoURL) {
 		return database.Project{}, errors.New("invalid repository url")
 	}
@@ -54,21 +49,17 @@ func (s *ProjectService) CreateProject(
 	project, err := s.DB.CreateProject(context.Background(), database.CreateProjectParams{
 		Name:    name,
 		RepoUrl: repoURL,
-		UserID: pgtype.Int4{
-			Int32: userID,
-			Valid: true,
-		},
 	})
 	if err == nil && s.Cache != nil {
-		_ = s.Cache.DeleteProjects(context.Background(), userID)
+		_ = s.Cache.DeleteProjects(context.Background())
 	}
 	return project, err
 }
 
-func (s *ProjectService) GetProjects(userID int32) ([]database.Project, error) {
+func (s *ProjectService) GetProjects() ([]database.Project, error) {
 	ctx := context.Background()
 	if s.Cache != nil {
-		projects, found, err := s.Cache.GetProjects(ctx, userID)
+		projects, found, err := s.Cache.GetProjects(ctx)
 		if err == nil && found {
 			return projects, nil
 		}
@@ -77,103 +68,62 @@ func (s *ProjectService) GetProjects(userID int32) ([]database.Project, error) {
 		}
 	}
 
-	projects, err := s.DB.GetProjectsByUser(ctx, pgtype.Int4{
-		Int32: userID,
-		Valid: true,
-	})
+	projects, err := s.DB.GetProjects(ctx)
 	if err == nil && s.Cache != nil {
-		if cacheErr := s.Cache.SetProjects(ctx, userID, projects); cacheErr != nil {
+		if cacheErr := s.Cache.SetProjects(ctx, projects); cacheErr != nil {
 			slog.Warn("project cache write failed", "error", cacheErr)
 		}
 	}
 	return projects, err
 }
 
-func (s *ProjectService) GetProject(id int32, userID int32) (database.Project, error) {
-	return s.DB.GetProjectByUser(context.Background(), database.GetProjectByUserParams{
-		ID: id,
-		UserID: pgtype.Int4{
-			Int32: userID,
-			Valid: true,
-		},
-	})
+func (s *ProjectService) GetProject(id int32) (database.Project, error) {
+	return s.DB.GetProject(context.Background(), id)
 }
 
-func (s *ProjectService) CreateDeployment(projectID int32, userID int32) (database.Deployment, error) {
-	_, err := s.GetProject(projectID, userID)
-	if err != nil {
+func (s *ProjectService) CreateDeployment(projectID int32) (database.Deployment, error) {
+	if _, err := s.GetProject(projectID); err != nil {
 		return database.Deployment{}, err
 	}
 
-	count, err := s.DB.CountActiveDeploymentsByUser(
-		context.Background(),
-		pgtype.Int4{
-			Int32: userID,
-			Valid: true,
-		},
-	)
-
-	if err != nil {
-		return database.Deployment{}, err
-	}
-
-	if count >= 3 {
-		return database.Deployment{}, errors.New("deployment limit reached")
-	}
-
-	_,err = s.DB.GetActiveDeploymentByProject(context.Background(),projectID)
+	_, err := s.DB.GetActiveDeploymentByProject(context.Background(), projectID)
 	if err == nil {
 		return database.Deployment{}, errors.New("deployment already running")
 	}
-
-	if err != pgx.ErrNoRows{
+	if err != pgx.ErrNoRows {
 		return database.Deployment{}, err
 	}
 
-	return s.DB.CreateDeployment(context.Background(), database.CreateDeploymentParams{
+	deployment, err := s.DB.CreateDeployment(context.Background(), database.CreateDeploymentParams{
 		ProjectID: projectID,
 		Status:    "queued",
 	})
-}
-
-func (s *ProjectService) GetDeployments(userID int32) ([]database.Deployment, error) {
-	return s.DB.GetDeploymentsByUser(context.Background(), pgtype.Int4{
-		Int32: userID,
-		Valid: true,
-	})
-}
-
-func (s *ProjectService) GetDeployment(id int32, userID int32) (database.Deployment, error) {
-	deployment, err := s.DB.GetDeployment(context.Background(), id)
-	if err != nil {
-		return database.Deployment{}, err
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.ConstraintName == "deployments_global_limit" {
+		return database.Deployment{}, errors.New("deployment limit reached")
 	}
-
-	_, err = s.GetProject(deployment.ProjectID, userID)
-	if err != nil {
-		return database.Deployment{}, err
-	}
-
-	return deployment, nil
+	return deployment, err
 }
 
-func (s *ProjectService) GetDeploymentsByProject(projectID int32, userID int32) ([]database.Deployment, error) {
-	_, err := s.GetProject(projectID, userID)
-	if err != nil {
+func (s *ProjectService) GetDeployments() ([]database.Deployment, error) {
+	return s.DB.GetDeployments(context.Background())
+}
+
+func (s *ProjectService) GetDeployment(id int32) (database.Deployment, error) {
+	return s.DB.GetDeployment(context.Background(), id)
+}
+
+func (s *ProjectService) GetDeploymentsByProject(projectID int32) ([]database.Deployment, error) {
+	if _, err := s.GetProject(projectID); err != nil {
 		return nil, err
 	}
-
 	return s.DB.GetDeploymentsByProject(context.Background(), projectID)
 }
 
-// DeleteProject removes a project's deployment rows first, then the
-// project itself, since deployments.project_id has a foreign key
-// pointing at projects.id with no cascade configured. Docker cleanup
-// (stopping/removing containers and images) is the caller's
-// responsibility — this only touches the database.
-func (s *ProjectService) DeleteProject(projectID int32, userID int32) error {
-	_, err := s.GetProject(projectID, userID)
-	if err != nil {
+// DeleteProject removes deployment resources in the handler before deleting
+// their rows and the shared demo project.
+func (s *ProjectService) DeleteProject(projectID int32) error {
+	if _, err := s.GetProject(projectID); err != nil {
 		return err
 	}
 
@@ -181,15 +131,9 @@ func (s *ProjectService) DeleteProject(projectID int32, userID int32) error {
 		return err
 	}
 
-	err = s.DB.DeleteProjectByUser(context.Background(), database.DeleteProjectByUserParams{
-		ID: projectID,
-		UserID: pgtype.Int4{
-			Int32: userID,
-			Valid: true,
-		},
-	})
+	err := s.DB.DeleteProject(context.Background(), projectID)
 	if err == nil && s.Cache != nil {
-		_ = s.Cache.DeleteProjects(context.Background(), userID)
+		_ = s.Cache.DeleteProjects(context.Background())
 	}
 	return err
 }

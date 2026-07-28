@@ -22,7 +22,7 @@ type Project struct {
 	Name      string
 	RepoUrl   string
 	CreatedAt pgtype.Timestamp
-	UserID    pgtype.Int4
+	UserID    int32
 }
 
 type ProjectEnvVar struct {

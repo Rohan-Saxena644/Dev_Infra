@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
 	"github.com/Rohan-Saxena644/devinfra/internal/secrets"
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5"
@@ -22,7 +21,7 @@ type EnvironmentKeysResponse struct {
 }
 
 func (s *Server) SetProjectEnvironmentVariable(w http.ResponseWriter, r *http.Request) {
-	projectID, userID, ok := projectEnvironmentIDs(w, r)
+	projectID, ok := projectEnvironmentID(w, r)
 	if !ok {
 		return
 	}
@@ -34,7 +33,7 @@ func (s *Server) SetProjectEnvironmentVariable(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err := s.ProjectService.SetProjectEnvVar(projectID, userID, chi.URLParam(r, "name"), request.Value)
+	err := s.ProjectService.SetProjectEnvVar(projectID, chi.URLParam(r, "name"), request.Value)
 	if writeEnvironmentError(w, err) {
 		return
 	}
@@ -42,12 +41,12 @@ func (s *Server) SetProjectEnvironmentVariable(w http.ResponseWriter, r *http.Re
 }
 
 func (s *Server) GetProjectEnvironment(w http.ResponseWriter, r *http.Request) {
-	projectID, userID, ok := projectEnvironmentIDs(w, r)
+	projectID, ok := projectEnvironmentID(w, r)
 	if !ok {
 		return
 	}
 
-	keys, err := s.ProjectService.ListProjectEnvVarKeys(projectID, userID)
+	keys, err := s.ProjectService.ListProjectEnvVarKeys(projectID)
 	if writeEnvironmentError(w, err) {
 		return
 	}
@@ -56,30 +55,25 @@ func (s *Server) GetProjectEnvironment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteProjectEnvironmentVariable(w http.ResponseWriter, r *http.Request) {
-	projectID, userID, ok := projectEnvironmentIDs(w, r)
+	projectID, ok := projectEnvironmentID(w, r)
 	if !ok {
 		return
 	}
 
-	err := s.ProjectService.DeleteProjectEnvVar(projectID, userID, chi.URLParam(r, "name"))
+	err := s.ProjectService.DeleteProjectEnvVar(projectID, chi.URLParam(r, "name"))
 	if writeEnvironmentError(w, err) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func projectEnvironmentIDs(w http.ResponseWriter, r *http.Request) (int32, int32, bool) {
+func projectEnvironmentID(w http.ResponseWriter, r *http.Request) (int32, bool) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		http.Error(w, "invalid project id", http.StatusBadRequest)
-		return 0, 0, false
+		return 0, false
 	}
-	userID, ok := middleware.GetUserID(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return 0, 0, false
-	}
-	return int32(id), userID, true
+	return int32(id), true
 }
 
 func writeEnvironmentError(w http.ResponseWriter, err error) bool {

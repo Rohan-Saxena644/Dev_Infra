@@ -55,6 +55,10 @@ func TestNormalizeComposeConfig(t *testing.T) {
 	if frontend["restart"] != "unless-stopped" {
 		t.Fatal("restart policy was not applied")
 	}
+	securityOptions := frontend["security_opt"].([]any)
+	if len(securityOptions) != 1 || securityOptions[0] != "no-new-privileges:true" {
+		t.Fatal("no-new-privileges was not applied")
+	}
 	build := frontend["build"].(map[string]any)
 	if !filepath.IsAbs(build["context"].(string)) {
 		t.Fatal("build context should be stored as an absolute path")
@@ -163,9 +167,16 @@ volumes:
 func TestNormalizeComposeConfigRejectsDangerousServices(t *testing.T) {
 	repoPath := t.TempDir()
 	tests := map[string]string{
-		"privileged":   `{"services":{"web":{"image":"nginx","privileged":true,"ports":[{"target":80,"published":"80"}]}}}`,
-		"bind mount":   `{"services":{"web":{"image":"nginx","ports":[{"target":80,"published":"80"}],"volumes":[{"type":"bind","source":"/","target":"/host"}]}}}`,
-		"host network": `{"services":{"web":{"image":"nginx","network_mode":"host","ports":[{"target":80,"published":"80"}]}}}`,
+		"privileged":         `{"services":{"web":{"image":"nginx","privileged":true,"ports":[{"target":80,"published":"80"}]}}}`,
+		"bind mount":         `{"services":{"web":{"image":"nginx","ports":[{"target":80,"published":"80"}],"volumes":[{"type":"bind","source":"/","target":"/host"}]}}}`,
+		"host network":       `{"services":{"web":{"image":"nginx","network_mode":"host","ports":[{"target":80,"published":"80"}]}}}`,
+		"container network":  `{"services":{"web":{"image":"nginx","network_mode":"container:devinfra","ports":[{"target":80,"published":"80"}]}}}`,
+		"volumes from":       `{"services":{"web":{"image":"nginx","volumes_from":["container:devinfra"],"ports":[{"target":80,"published":"80"}]}}}`,
+		"API socket":         `{"services":{"web":{"image":"nginx","use_api_socket":true,"ports":[{"target":80,"published":"80"}]}}}`,
+		"build privileged":   `{"services":{"web":{"build":{"context":".","privileged":true},"ports":[{"target":80,"published":"80"}]}}}`,
+		"build entitlement":  `{"services":{"web":{"build":{"context":".","entitlements":["security.insecure"]},"ports":[{"target":80,"published":"80"}]}}}`,
+		"build host network": `{"services":{"web":{"build":{"context":".","network":"host"},"ports":[{"target":80,"published":"80"}]}}}`,
+		"volume driver opts": `{"services":{"web":{"image":"nginx","volumes":[{"type":"volume","source":"data","target":"/host"}],"ports":[{"target":80,"published":"80"}]}},"volumes":{"data":{"driver":"local","driver_opts":{"type":"none","o":"bind","device":"/"}}}}`,
 	}
 
 	for name, raw := range tests {

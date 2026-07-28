@@ -14,11 +14,46 @@ import (
 
 type Client struct{}
 
+const builderName = "devinfra-builder"
+
 func (c *Client)DockerPS()([]byte,error){
 	return exec.Command(
 		"docker",
 		"ps",
 	).CombinedOutput()
+}
+
+func (c *Client) EnsureBuilder() error {
+	if err := exec.Command("docker", "buildx", "inspect", builderName).Run(); err == nil {
+		return nil
+	}
+
+	output, err := exec.Command(
+		"docker",
+		"buildx",
+		"create",
+		"--name",
+		builderName,
+		"--driver",
+		"docker-container",
+		"--driver-opt",
+		"memory=512m",
+		"--driver-opt",
+		"memory-swap=768m",
+		"--driver-opt",
+		"cpu-period=100000",
+		"--driver-opt",
+		"cpu-quota=50000",
+		"--driver-opt",
+		"network=bridge",
+		"--driver-opt",
+		"default-load=true",
+		"--bootstrap",
+	).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("create limited BuildKit builder: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+	return nil
 }
 
 
@@ -30,7 +65,13 @@ func (c *Client) Build(tag string, path string)([]byte,error){
 
 	return exec.CommandContext(ctx,
 		"docker",
+		"buildx",
 		"build",
+		"--builder",
+		builderName,
+		"--load",
+		"--network",
+		"default",
 		"-t",
 		tag,
 		path,
@@ -54,6 +95,10 @@ func (c *Client) Run(containerName string, image string , port int, containerPor
 		"0.50",
 		"--pids-limit",
 		"100",
+		"--network",
+		"bridge",
+		"--security-opt",
+		"no-new-privileges:true",
 	}
 	if envFile != "" {
 		args = append(args, "--env-file", envFile)

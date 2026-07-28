@@ -1,6 +1,6 @@
 # DevInfra
 
-DevInfra is a self-hosted deployment platform built with Go and Next.js. It turns public GitHub repositories into managed Docker or constrained Docker Compose deployments with worker-based builds, JWT ownership, encrypted environment variables, logs, lifecycle controls, PostgreSQL, and Redis.
+DevInfra is a self-hosted deployment platform built with Go and Next.js. It turns public GitHub repositories into managed Docker or constrained Docker Compose deployments with worker-based builds, encrypted environment variables, logs, lifecycle controls, PostgreSQL, and Redis.
 
 The project is inspired by platforms such as Render and Heroku, but focuses on exposing the infrastructure behind a deployment platform in a compact, understandable codebase.
 
@@ -9,13 +9,13 @@ The project is inspired by platforms such as Render and Heroku, but focuses on e
 - Deploy public GitHub repositories through a REST API or web dashboard.
 - Build and run root-level Dockerfiles automatically.
 - Detect and deploy supported Docker Compose applications.
-- Process deployments asynchronously with a bounded queue and three Go workers.
+- Process deployments asynchronously with a bounded queue and one resource-conscious Go worker.
 - Track queued, running, successful, and failed deployment states in PostgreSQL.
-- Isolate projects and deployments by authenticated user ownership.
+- Provide a shared demo workspace with a database-enforced global deployment limit.
 - Store project environment variables using AES-256-GCM encryption.
 - Inject variables at deployment time without returning their values to the frontend.
 - View deployment logs and stop, restart, or delete running workloads.
-- Cache per-user project lists in Redis with automatic invalidation.
+- Cache the shared project list in Redis with automatic invalidation.
 - Apply request, resource, build-time, and deployment-count limits.
 - Clean temporary repositories, environment files, containers, images, and Compose resources.
 
@@ -27,7 +27,7 @@ Next.js dashboard
        v
 Go REST API (Chi)
        |
-       +--> CORS, logging, rate limits, JWT authentication
+       +--> CORS, logging, and rate limits
        |
        +--> Service layer --> PostgreSQL (pgx + sqlc)
        |                         |
@@ -43,15 +43,14 @@ Go REST API (Chi)
 
 ## Deployment Flow
 
-1. A user signs up or logs in and receives a 24-hour JWT.
-2. The user registers a public GitHub repository as a project.
-3. Optional project environment variables are encrypted before storage.
-4. A deployment record is created with the `queued` status.
-5. A worker marks it `running`, clones the repository, and prepares its environment.
-6. DevInfra detects either a Dockerfile or a supported Compose file.
-7. The workload is built with time and resource limits and exposed on a dynamic host port.
-8. The deployment is marked `success` or `failed`.
-9. Successful workloads can be inspected, stopped, restarted, or deleted from the dashboard.
+1. A visitor registers a public GitHub repository in the shared demo workspace.
+2. Optional project environment variables are encrypted before storage.
+3. A deployment record is created with the `queued` status.
+4. A worker marks it `running`, clones the repository, and prepares its environment.
+5. DevInfra detects either a Dockerfile or a supported Compose file.
+6. The workload is built with time and resource limits and exposed on a dynamic host port.
+7. The deployment is marked `success` or `failed`.
+8. Successful workloads can be inspected, stopped, restarted, or deleted from the dashboard.
 
 ## Supported Repositories
 
@@ -73,7 +72,7 @@ DevInfra detects `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docke
 - Alternatively, set the `devinfra.public=true` service label.
 - Use `devinfra.port` when the selected service publishes multiple ports.
 - Project variables should be referenced as `${VARIABLE_NAME}` in the Compose file.
-- External resources, host bind mounts, host networking, privileged mode, devices, Compose secrets, and Compose configs are intentionally rejected.
+- Compose accepts a strict set of service and build fields. Socket delegation, inherited volumes, external resources, unsafe volume drivers, namespace sharing, privileged builds, host networking, devices, Compose secrets, and Compose configs are rejected.
 
 Example public-service labels:
 
@@ -91,7 +90,7 @@ services:
 | --- | --- |
 | Backend | Go, Chi, slog |
 | Database | PostgreSQL 17, pgx, sqlc, Goose migrations |
-| Authentication | JWT HS256, bcrypt |
+| Access model | Shared anonymous demo workspace |
 | Secrets | AES-256-GCM |
 | Cache | Redis |
 | Runtime | Docker Engine, Docker Compose v2, Git CLI |
@@ -123,7 +122,7 @@ openssl rand -hex 24
 openssl rand -hex 32
 ```
 
-Use the first value for `POSTGRES_PASSWORD`. Generate separate 64-character hexadecimal values for `SECRET` and `ENV_ENCRYPTION_KEY`. Keep `ENV_ENCRYPTION_KEY` permanently; changing it makes stored project variables unreadable.
+Use the first value for `POSTGRES_PASSWORD` and the 64-character hexadecimal value for `ENV_ENCRYPTION_KEY`. Keep `ENV_ENCRYPTION_KEY` permanently; changing it makes stored project variables unreadable.
 
 ### 2. Start dependencies and migrate
 
@@ -146,7 +145,7 @@ docker compose ps
 docker compose logs -f devinfra
 ```
 
-The API listens on `http://localhost:8080`. An unauthenticated request to `/projects` should return `401 Unauthorized`.
+The API listens on `http://localhost:8080`. `GET /projects` returns the shared demo project list.
 
 ### 4. Start the frontend
 
@@ -170,34 +169,27 @@ Then run:
 npm run dev
 ```
 
-Open `http://localhost:3000`, create an account, register a repository, add any required environment variables, and start a deployment.
+Open `http://localhost:3000`, register a repository, add any required environment variables, and start a deployment.
 
 ## API Overview
 
-Public routes:
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| POST | `/auth/signup` | Create a Gmail-based account |
-| POST | `/auth/login` | Receive a JWT |
-
-Protected routes require `Authorization: Bearer <token>`:
+All routes operate on the shared demo workspace:
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | GET / POST | `/projects` | List or create projects |
-| GET / DELETE | `/projects/{id}` | Read or delete an owned project |
+| GET / DELETE | `/projects/{id}` | Read or delete a project |
 | POST | `/projects/{id}/deploy` | Queue a deployment |
 | PUT / DELETE | `/projects/{id}/environment/{name}` | Set or delete an encrypted variable |
 | GET | `/projects/{id}/environment` | List variable names only |
-| GET | `/deployments` | List owned deployments |
+| GET | `/deployments` | List deployments |
 | GET | `/deployments/{id}/logs` | Read the latest deployment logs |
 | POST | `/deployments/{id}/stop` | Stop a successful workload |
 | POST | `/deployments/{id}/restart` | Restart a stopped workload |
 
 ## Operational Limits
 
-- Three active deployments per user.
+- Ten queued, running, or successful deployments globally, enforced atomically by PostgreSQL.
 - One active deployment per project.
 - Ten retained deployment records per project using FIFO cleanup.
 - Fifty environment variables per project.
@@ -205,7 +197,7 @@ Protected routes require `Authorization: Bearer <token>`:
 - Dockerfile build timeout: 10 minutes.
 - Compose deployment timeout: 15 minutes.
 - Deployment logs: last 200 lines, capped at 256 KiB.
-- API, authentication, project, and deployment actions have separate rate limits.
+- API, project, and deployment actions have separate rate limits.
 - HTTP body, header, read, write, idle, and graceful-shutdown limits are configured.
 
 ## Development
@@ -234,12 +226,11 @@ npm run build
 
 ## Security Notes
 
-- Passwords are hashed with bcrypt and never stored directly.
-- JWT signing secrets must be at least 32 characters.
 - Environment values are encrypted at rest and are never returned by the API.
 - Git repository URLs are restricted to public `https://github.com/owner/repository` paths.
-- Compose input is normalized and dangerous host-level options are rejected.
-- Workloads receive CPU, memory, and PID limits.
+- Compose input is normalized through a strict field allowlist.
+- Workloads receive CPU, memory, PID, bridge-network, and no-new-privileges restrictions.
+- Dockerfile Buildx steps receive CPU and memory limits; builds cannot request host networking.
 - PostgreSQL and Redis bind to loopback only in the included production Compose configuration.
 - Configure `ALLOWED_ORIGINS` explicitly for the deployed frontend.
 - Serve the backend over HTTPS before connecting it to an HTTPS Vercel frontend.
@@ -251,8 +242,7 @@ DevInfra is a strong portfolio and learning platform, but it should not be treat
 - The deployment queue is in memory, so queued work is not durable across API restarts.
 - Workloads are exposed through dynamic ports rather than a domain-based reverse proxy.
 - The API container controls the host Docker daemon through its socket, which is a significant trust boundary.
-- Docker builds execute code from submitted repositories and should only accept trusted users and repositories.
-- Authentication currently supports Gmail and passwords; OAuth and email verification are not implemented.
+- Docker builds still execute untrusted repository code, so the shared demo limit and host monitoring remain important.
 - Broader integration tests, metrics, tracing, health checks, and automated CI/CD remain future improvements.
 
 ## Project Repositories
@@ -262,4 +252,4 @@ DevInfra is a strong portfolio and learning platform, but it should not be treat
 
 ## Project Status
 
-The core platform is implemented and end-to-end tested with authentication, encrypted configuration, Docker deployment, logs, stop, restart, and cleanup. Docker Compose support is implemented for repositories that satisfy the documented safety contract.
+The core platform is implemented and end-to-end tested with a shared demo workspace, encrypted configuration, Docker deployment, logs, stop, restart, and cleanup. Docker Compose support is implemented for repositories that satisfy the documented safety contract.

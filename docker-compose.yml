@@ -37,7 +37,6 @@ services:
     environment:
       DATABASE_URL: "postgres://admin:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/devinfra?sslmode=disable"
       PORT: "8080"
-      SECRET: ${SECRET:?SECRET is required}
       ENV_ENCRYPTION_KEY: ${ENV_ENCRYPTION_KEY:?ENV_ENCRYPTION_KEY is required}
       ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}"
       REDIS_ADDR: "redis:6379"
@@ -49,6 +48,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./tmp:/app/tmp
+      - buildx_data:/root/.docker/buildx
 
 volumes:
   postgres_data:
+  buildx_data:

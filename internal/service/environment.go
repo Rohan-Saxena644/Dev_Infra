@@ -9,11 +9,10 @@ import (
 
 func (s *ProjectService) SetProjectEnvVar(
 	projectID int32,
-	userID int32,
 	name string,
 	value string,
 ) error {
-	if _, err := s.GetProject(projectID, userID); err != nil {
+	if _, err := s.GetProject(projectID); err != nil {
 		return err
 	}
 	if err := secrets.ValidateVariable(name, value); err != nil {
@@ -31,8 +30,8 @@ func (s *ProjectService) SetProjectEnvVar(
 	})
 }
 
-func (s *ProjectService) ListProjectEnvVarKeys(projectID int32, userID int32) ([]string, error) {
-	if _, err := s.GetProject(projectID, userID); err != nil {
+func (s *ProjectService) ListProjectEnvVarKeys(projectID int32) ([]string, error) {
+	if _, err := s.GetProject(projectID); err != nil {
 		return nil, err
 	}
 
@@ -47,8 +46,8 @@ func (s *ProjectService) ListProjectEnvVarKeys(projectID int32, userID int32) ([
 	return keys, nil
 }
 
-func (s *ProjectService) DeleteProjectEnvVar(projectID int32, userID int32, name string) error {
-	if _, err := s.GetProject(projectID, userID); err != nil {
+func (s *ProjectService) DeleteProjectEnvVar(projectID int32, name string) error {
+	if _, err := s.GetProject(projectID); err != nil {
 		return err
 	}
 	if err := secrets.ValidateVariable(name, ""); err != nil {

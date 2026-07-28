@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/Rohan-Saxena644/devinfra/internal/database"
@@ -13,6 +12,8 @@ import (
 type Client struct {
 	redis *redis.Client
 }
+
+const projectsKey = "projects:demo"
 
 func New(addr string) *Client {
 	return &Client{redis: redis.NewClient(&redis.Options{
@@ -34,9 +35,8 @@ func (c *Client) Close() error {
 
 func (c *Client) GetProjects(
 	ctx context.Context,
-	userID int32,
 ) ([]database.Project, bool, error) {
-	value, err := c.redis.Get(ctx, projectsKey(userID)).Bytes()
+	value, err := c.redis.Get(ctx, projectsKey).Bytes()
 	if err == redis.Nil {
 		return nil, false, nil
 	}
@@ -53,20 +53,15 @@ func (c *Client) GetProjects(
 
 func (c *Client) SetProjects(
 	ctx context.Context,
-	userID int32,
 	projects []database.Project,
 ) error {
 	value, err := json.Marshal(projects)
 	if err != nil {
 		return err
 	}
-	return c.redis.Set(ctx, projectsKey(userID), value, time.Minute).Err()
+	return c.redis.Set(ctx, projectsKey, value, time.Minute).Err()
 }
 
-func (c *Client) DeleteProjects(ctx context.Context, userID int32) error {
-	return c.redis.Del(ctx, projectsKey(userID)).Err()
-}
-
-func projectsKey(userID int32) string {
-	return fmt.Sprintf("projects:user:%d", userID)
+func (c *Client) DeleteProjects(ctx context.Context) error {
+	return c.redis.Del(ctx, projectsKey).Err()
 }

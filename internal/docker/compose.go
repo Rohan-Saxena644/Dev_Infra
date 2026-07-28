@@ -66,7 +66,10 @@ func (c *Client) DeployCompose(
 		return err
 	}
 
-	_, err = c.runCompose(15*time.Minute, configPath, projectName, "up", "-d", "--build", "--remove-orphans")
+	_, err = c.runCompose(15*time.Minute, configPath, projectName, "build", "--builder", builderName)
+	if err == nil {
+		_, err = c.runCompose(2*time.Minute, configPath, projectName, "up", "-d", "--no-build", "--remove-orphans")
+	}
 	if err != nil {
 		_, _ = c.runCompose(time.Minute, configPath, projectName, "down", "--remove-orphans")
 		_ = os.Remove(configPath)
@@ -193,6 +196,9 @@ func normalizeComposeConfig(
 	if err := decoder.Decode(&config); err != nil {
 		return nil, fmt.Errorf("invalid compose configuration: %w", err)
 	}
+	if err := allowOnlyFields(config, "compose", "name", "services", "volumes", "networks"); err != nil {
+		return nil, err
+	}
 
 	services, ok := config["services"].(map[string]any)
 	if !ok || len(services) == 0 {
@@ -202,14 +208,11 @@ func normalizeComposeConfig(
 		return nil, errors.New("compose deployments support at most 4 services")
 	}
 
-	if err := sanitizeTopLevelResources(config, "volumes", projectName); err != nil {
+	if err := sanitizeVolumes(config, projectName); err != nil {
 		return nil, err
 	}
-	if err := sanitizeTopLevelResources(config, "networks", projectName); err != nil {
+	if err := sanitizeNetworks(config, projectName); err != nil {
 		return nil, err
-	}
-	if hasEntries(config["secrets"]) || hasEntries(config["configs"]) {
-		return nil, errors.New("compose secrets and configs are not supported")
 	}
 
 	config["name"] = projectName
@@ -239,6 +242,7 @@ func normalizeComposeConfig(
 		service["mem_limit"] = fmt.Sprintf("%dm", memoryMB)
 		service["cpus"] = json.Number("0.50")
 		service["pids_limit"] = json.Number("100")
+		service["security_opt"] = []any{"no-new-privileges:true"}
 	}
 
 	publicService, err := selectPublicService(services, serviceNames)
@@ -266,6 +270,31 @@ func normalizeComposeConfig(
 }
 
 func validateComposeService(name string, service map[string]any, repoPath string) error {
+	if err := allowOnlyFields(
+		service,
+		"compose service "+name,
+		"image",
+		"build",
+		"command",
+		"entrypoint",
+		"environment",
+		"ports",
+		"expose",
+		"depends_on",
+		"networks",
+		"volumes",
+		"labels",
+		"healthcheck",
+		"working_dir",
+		"user",
+		"init",
+		"read_only",
+		"stop_grace_period",
+		"stop_signal",
+	); err != nil {
+		return err
+	}
+
 	if value, _ := service["privileged"].(bool); value {
 		return fmt.Errorf("compose service %s cannot use privileged mode", name)
 	}
@@ -273,18 +302,10 @@ func validateComposeService(name string, service map[string]any, repoPath string
 		return fmt.Errorf("compose service %s cannot set container_name", name)
 	}
 
-	for _, field := range []string{"network_mode", "pid", "ipc", "userns_mode"} {
-		if value, _ := service[field].(string); strings.EqualFold(value, "host") {
-			return fmt.Errorf("compose service %s cannot use host %s", name, field)
-		}
-	}
-	for _, field := range []string{"devices", "cap_add", "security_opt", "sysctls", "develop"} {
-		if hasEntries(service[field]) {
-			return fmt.Errorf("compose service %s cannot set %s", name, field)
-		}
-	}
-
 	if volumes, ok := service["volumes"].([]any); ok {
+		if len(volumes) > 4 {
+			return fmt.Errorf("compose service %s supports at most 4 volumes", name)
+		}
 		for _, rawVolume := range volumes {
 			volume, ok := rawVolume.(map[string]any)
 			if !ok {
@@ -293,8 +314,11 @@ func validateComposeService(name string, service map[string]any, repoPath string
 			volumeType, _ := volume["type"].(string)
 			source, _ := volume["source"].(string)
 			target, _ := volume["target"].(string)
-			if volumeType == "bind" || strings.Contains(source, "docker.sock") || strings.Contains(target, "docker.sock") {
-				return fmt.Errorf("compose service %s cannot use host bind mounts", name)
+			if volumeType != "volume" || source == "" {
+				return fmt.Errorf("compose service %s can only use named volumes", name)
+			}
+			if strings.Contains(source, "docker.sock") || strings.Contains(target, "docker.sock") {
+				return fmt.Errorf("compose service %s cannot use the Docker socket", name)
 			}
 		}
 	}
@@ -303,8 +327,8 @@ func validateComposeService(name string, service map[string]any, repoPath string
 	if !ok {
 		return nil
 	}
-	if hasEntries(build["additional_contexts"]) {
-		return fmt.Errorf("compose service %s cannot use additional build contexts", name)
+	if err := allowOnlyFields(build, "compose service "+name+" build", "context", "dockerfile", "args", "target"); err != nil {
+		return err
 	}
 
 	contextPath, _ := build["context"].(string)
@@ -389,20 +413,70 @@ func selectPublicPort(service map[string]any) (map[string]any, error) {
 	return nil, fmt.Errorf("published port %s was not found", wanted)
 }
 
-func sanitizeTopLevelResources(config map[string]any, field string, projectName string) error {
-	resources, ok := config[field].(map[string]any)
+func sanitizeVolumes(config map[string]any, projectName string) error {
+	resources, ok := config["volumes"].(map[string]any)
 	if !ok {
 		return nil
+	}
+	if len(resources) > 4 {
+		return errors.New("compose deployments support at most 4 volumes")
 	}
 	for key, rawResource := range resources {
 		resource, ok := rawResource.(map[string]any)
 		if !ok {
-			continue
+			return fmt.Errorf("compose volume %s is invalid", key)
 		}
 		if external, _ := resource["external"].(bool); external {
-			return fmt.Errorf("external compose %s are not supported", field)
+			return errors.New("external compose volumes are not supported")
 		}
-		resource["name"] = projectName + "_" + key
+		if driver, _ := resource["driver"].(string); driver != "" && driver != "local" {
+			return fmt.Errorf("compose volume %s must use the local driver", key)
+		}
+		if hasEntries(resource["driver_opts"]) {
+			return fmt.Errorf("compose volume %s cannot set driver options", key)
+		}
+		resources[key] = map[string]any{"name": projectName + "_" + key}
+	}
+	return nil
+}
+
+func sanitizeNetworks(config map[string]any, projectName string) error {
+	resources, ok := config["networks"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	if len(resources) > 4 {
+		return errors.New("compose deployments support at most 4 networks")
+	}
+	for key, rawResource := range resources {
+		resource, ok := rawResource.(map[string]any)
+		if !ok {
+			return fmt.Errorf("compose network %s is invalid", key)
+		}
+		if external, _ := resource["external"].(bool); external {
+			return errors.New("external compose networks are not supported")
+		}
+		if driver, _ := resource["driver"].(string); driver != "" && driver != "bridge" {
+			return fmt.Errorf("compose network %s must use the bridge driver", key)
+		}
+		network := map[string]any{"name": projectName + "_" + key}
+		if internal, _ := resource["internal"].(bool); internal {
+			network["internal"] = true
+		}
+		resources[key] = network
+	}
+	return nil
+}
+
+func allowOnlyFields(value map[string]any, location string, allowed ...string) error {
+	allowedFields := make(map[string]bool, len(allowed))
+	for _, field := range allowed {
+		allowedFields[field] = true
+	}
+	for field := range value {
+		if !allowedFields[field] {
+			return fmt.Errorf("%s cannot set %s", location, field)
+		}
 	}
 	return nil
 }

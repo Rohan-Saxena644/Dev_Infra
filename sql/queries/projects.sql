@@ -7,29 +7,21 @@ INSERT INTO projects (
 VALUES (
     $1,
     $2,
-    $3
+    (SELECT id FROM users WHERE email = 'demo@gmail.com')
 )
 RETURNING *;
 
--- name: GetProjectsByUser :many
+-- name: GetProjects :many
 SELECT *
 FROM projects
-WHERE user_id = $1
 ORDER BY created_at DESC;
 
-
--- name: GetProjectByUser :one
-SELECT *
-FROM projects
-WHERE id = $1
-AND user_id = $2;
 
 -- name: GetProject :one
 SELECT *
 FROM projects
 WHERE id = $1;
 
--- name: DeleteProjectByUser :exec
+-- name: DeleteProject :exec
 DELETE FROM projects
-WHERE id = $1
-AND user_id = $2;
+WHERE id = $1;

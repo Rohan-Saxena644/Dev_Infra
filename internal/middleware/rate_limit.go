@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -81,10 +80,6 @@ func (l *rateLimiter) allow(key string) (bool, int) {
 }
 
 func rateLimitKey(r *http.Request) string {
-	if userID, ok := GetUserID(r); ok {
-		return fmt.Sprintf("user:%d", userID)
-	}
-
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil {
 		return "ip:" + host

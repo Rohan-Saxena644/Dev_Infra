@@ -7,8 +7,6 @@ package database
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createProject = `-- name: CreateProject :one
@@ -20,7 +18,7 @@ INSERT INTO projects (
 VALUES (
     $1,
     $2,
-    $3
+    (SELECT id FROM users WHERE email = 'demo@gmail.com')
 )
 RETURNING id, name, repo_url, created_at, user_id
 `
@@ -28,11 +26,10 @@ RETURNING id, name, repo_url, created_at, user_id
 type CreateProjectParams struct {
 	Name    string
 	RepoUrl string
-	UserID  pgtype.Int4
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
-	row := q.db.QueryRow(ctx, createProject, arg.Name, arg.RepoUrl, arg.UserID)
+	row := q.db.QueryRow(ctx, createProject, arg.Name, arg.RepoUrl)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -44,19 +41,13 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 	return i, err
 }
 
-const deleteProjectByUser = `-- name: DeleteProjectByUser :exec
+const deleteProject = `-- name: DeleteProject :exec
 DELETE FROM projects
 WHERE id = $1
-AND user_id = $2
 `
 
-type DeleteProjectByUserParams struct {
-	ID     int32
-	UserID pgtype.Int4
-}
-
-func (q *Queries) DeleteProjectByUser(ctx context.Context, arg DeleteProjectByUserParams) error {
-	_, err := q.db.Exec(ctx, deleteProjectByUser, arg.ID, arg.UserID)
+func (q *Queries) DeleteProject(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, deleteProject, id)
 	return err
 }
 
@@ -79,40 +70,14 @@ func (q *Queries) GetProject(ctx context.Context, id int32) (Project, error) {
 	return i, err
 }
 
-const getProjectByUser = `-- name: GetProjectByUser :one
+const getProjects = `-- name: GetProjects :many
 SELECT id, name, repo_url, created_at, user_id
 FROM projects
-WHERE id = $1
-AND user_id = $2
-`
-
-type GetProjectByUserParams struct {
-	ID     int32
-	UserID pgtype.Int4
-}
-
-func (q *Queries) GetProjectByUser(ctx context.Context, arg GetProjectByUserParams) (Project, error) {
-	row := q.db.QueryRow(ctx, getProjectByUser, arg.ID, arg.UserID)
-	var i Project
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.RepoUrl,
-		&i.CreatedAt,
-		&i.UserID,
-	)
-	return i, err
-}
-
-const getProjectsByUser = `-- name: GetProjectsByUser :many
-SELECT id, name, repo_url, created_at, user_id
-FROM projects
-WHERE user_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetProjectsByUser(ctx context.Context, userID pgtype.Int4) ([]Project, error) {
-	rows, err := q.db.Query(ctx, getProjectsByUser, userID)
+func (q *Queries) GetProjects(ctx context.Context) ([]Project, error) {
+	rows, err := q.db.Query(ctx, getProjects)
 	if err != nil {
 		return nil, err
 	}

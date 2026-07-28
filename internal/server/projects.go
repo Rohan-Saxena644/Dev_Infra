@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/Rohan-Saxena644/devinfra/internal/middleware"
-
 	// "github.com/Rohan-Saxena644/devinfra/internal/database"
 
 	// "github.com/Rohan-Saxena644/devinfra/internal/service" was imported in the server struct from there the db is working entirely
@@ -35,13 +33,7 @@ func (s *Server) CreateProject(
 		return
 	}
 
-	userID, ok := middleware.GetUserID(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	project, err := s.ProjectService.CreateProject(req.Name, req.RepoURL, userID)
+	project, err := s.ProjectService.CreateProject(req.Name, req.RepoURL)
 
 	if err != nil {
 		if err.Error() == "invalid repository url" {
@@ -63,13 +55,7 @@ func (s *Server) GetProjects(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	userID, ok := middleware.GetUserID(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	projects, err := s.ProjectService.GetProjects(userID)
+	projects, err := s.ProjectService.GetProjects()
 	if err != nil {
 		slog.Error("failed to fetch projects", "error", err)
 		http.Error(
@@ -100,13 +86,7 @@ func (s *Server) GetProject(
 		return
 	}
 
-	userID, ok := middleware.GetUserID(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	project, err := s.ProjectService.GetProject(int32(id), userID)
+	project, err := s.ProjectService.GetProject(int32(id))
 
 	if err != nil {
 		slog.Error("failed to get project", "id", id, "error", err)
@@ -134,13 +114,7 @@ func (s *Server) DeleteProject(
 		return
 	}
 
-	userID, ok := middleware.GetUserID(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	deployments, err := s.ProjectService.GetDeploymentsByProject(int32(id), userID)
+	deployments, err := s.ProjectService.GetDeploymentsByProject(int32(id))
 	if err != nil {
 		slog.Error("failed to look up deployments for project", "project_id", id, "error", err)
 		http.Error(w, "project not found", http.StatusNotFound)
@@ -153,7 +127,7 @@ func (s *Server) DeleteProject(
 		}
 	}
 
-	if err := s.ProjectService.DeleteProject(int32(id), userID); err != nil {
+	if err := s.ProjectService.DeleteProject(int32(id)); err != nil {
 		slog.Error("failed to delete project", "project_id", id, "error", err)
 		http.Error(w, "failed to delete project", http.StatusInternalServerError)
 		return
